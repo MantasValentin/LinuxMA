@@ -22,22 +22,20 @@ sudo sysctl -w net.ipv4.ip_forward=1
 echo "net.ipv4.ip_forward=1" | sudo tee /etc/sysctl.d/99-router.conf
 sudo sysctl --system
 
-# Load the 802.1Q kernel module for vlan tagging
-sudo modprobe 8021q
-echo "8021q" | sudo tee -a /etc/modules
-
 # Disable ufw to prevent interferance with nftables
 sudo systemctl disable --now ufw 2>/dev/null || true
-
-# Disable systemd-resolved, interall dns will be resolved with dnsmasq
-sudo systemctl stop systemd-resolved
-sudo systemctl disable systemd-resolved
 
 # Internall network interface will be NIC_I, externall network interface will be NIC_E, these need to be set to the ones specific to the name as it is specific to the system, it can be ens18, eth0, enp0s3 or else
 
 # Change these
 NIC_E=ens33
 NIC_I=ens34
+
+# 10.0.0.0/24, router = 10.0.0.1
+#   10.0.0.10 - 10.0.0.19   management 
+#   10.0.0.20 - 10.0.0.29   infrastructure
+#   10.0.0.30 - 10.0.0.39   servers / reverse proxy
+#   10.0.0.100 - 10.0.0.200 DHCP pool for everything else
 
 # Configure the interfaces with NetworkManager
 
@@ -47,25 +45,18 @@ sudo tee /etc/NetworkManager/conf.d/dns.conf > /dev/null <<EOT
 dns=none
 EOT
 
-sudo systemctl reload NetworkManager
+sudo systemctl restart NetworkManager
+
+# Disable systemd-resolved, interall dns will be resolved with dnsmasq
+sudo systemctl disable --now systemd-resolved
 
 # Configure the extrernal interface to function as a WAN connection with automatic DHCP
 sudo nmcli connection add type ethernet ifname $NIC_E con-name WAN ipv4.method auto
 sudo nmcli connection modify WAN connection.autoconnect yes
 
-# Configure the internal interface as a trunk and add the vlans make sure DHCP is dissabled
-sudo nmcli connection add type ethernet ifname $NIC_I con-name LAN-Trunk ipv4.method disabled
-sudo nmcli connection modify LAN-Trunk connection.autoconnect yes
-
-sudo nmcli connection add type vlan ifname $NIC_I.10 dev $NIC_I id 10 con-name vlan10
-sudo nmcli connection modify vlan10 ipv4.addresses 10.0.10.1/24 ipv4.method manual
-sudo nmcli connection add type vlan ifname $NIC_I.20 dev $NIC_I id 20 con-name vlan20
-sudo nmcli connection modify vlan20 ipv4.addresses 10.0.20.1/24 ipv4.method manual
-sudo nmcli connection add type vlan ifname $NIC_I.30 dev $NIC_I id 30 con-name vlan30
-sudo nmcli connection modify vlan30 ipv4.addresses 10.0.30.1/24 ipv4.method manual
-sudo nmcli connection modify vlan10 connection.autoconnect yes
-sudo nmcli connection modify vlan20 connection.autoconnect yes
-sudo nmcli connection modify vlan30 connection.autoconnect yes
+# Configure the internal interface as a single flat LAN with a static IP
+sudo nmcli connection add type ethernet ifname $NIC_I con-name LAN ipv4.method manual ipv4.addresses 10.0.0.1/24
+sudo nmcli connection modify LAN connection.autoconnect yes
 
 sudo systemctl restart NetworkManager
 
@@ -76,30 +67,22 @@ echo "nameserver 127.0.0.1" | sudo tee /etc/resolv.conf
 # Configure dnsmasq
 sudo rm /etc/dnsmasq.conf
 sudo tee /etc/dnsmasq.conf > /dev/null <<EOT
-# Bind to VLAN interfaces
-interface=$NIC_I.10
-interface=$NIC_I.20
-interface=$NIC_I.30
+# Bind to the LAN interface
+interface=$NIC_I
 
-# DHCP Ranges
-dhcp-range=$NIC_I.10,10.0.10.100,10.0.10.200,255.255.255.0,24h
-dhcp-range=$NIC_I.20,10.0.20.100,10.0.20.200,255.255.255.0,24h
-dhcp-range=$NIC_I.30,10.0.30.100,10.0.30.200,255.255.255.0,24h
+# DHCP range
+dhcp-range=10.0.0.100,10.0.0.200,255.255.255.0,24h
 
 # DNS server to hand out to clients
-dhcp-option=$NIC_I.10,6,10.0.10.1
-dhcp-option=$NIC_I.20,6,10.0.20.1
-dhcp-option=$NIC_I.30,6,10.0.30.1
+dhcp-option=6,10.0.0.1
 
-# DNS for the router itself
-server=10.0.20.2
+# DNS for the router itself, point this at your infra DNS box if you have one
+server=10.0.0.20
 server=8.8.8.8
 
 # Listen for DNS
 listen-address=127.0.0.1
-listen-address=10.0.10.1
-listen-address=10.0.20.1
-listen-address=10.0.30.1
+listen-address=10.0.0.1
 
 # Do not read /etc/resolv.conf
 no-resolv
@@ -127,8 +110,8 @@ table ip nat {
     chain prerouting {
         type nat hook prerouting priority dstnat; policy accept;
         # Route all http traffic to reverse proxy
-        tcp dport 80 dnat to 10.0.30.2
-        tcp dport 443 dnat to 10.0.30.2
+        tcp dport 80 dnat to 10.0.0.30
+        tcp dport 443 dnat to 10.0.0.30
     }
 }
 
@@ -139,14 +122,13 @@ table inet filter {
         ct state established,related accept
         # Allow loopback
         iifname "lo" accept
-        # Allow SSH from management VLAN
-        iifname "$NIC_I.10" tcp dport 22 accept
+        # Allow SSH only from the management range 10.0.0.10-19
+        ip saddr 10.0.0.10-10.0.0.19 tcp dport 22 accept
         # Allow ICMP
         ip protocol icmp accept
-        ip6 protocol icmpv6 accept
         # Allow DHCP requests from LAN
         udp dport 68 accept
-        iifname { "$NIC_I.10", "$NIC_I.20", "$NIC_I.30" } udp dport 67 accept
+        iifname "$NIC_I" udp dport 67 accept
         # Allow DNS
         udp dport 53 accept
         tcp dport 53 accept
@@ -156,11 +138,12 @@ table inet filter {
         type filter hook forward priority filter; policy drop;
         # Allow established/related connections
         ct state established,related accept
-        # Allow forwarding between LAN interfaces, VLAN 30 is for the proxy and http server
-        iifname { "$NIC_I.10", "$NIC_I.20", "$NIC_I.30" } oifname "$NIC_E" accept
-        iifname "$NIC_E" oifname "$NIC_I.30" tcp dport {80,443} accept
-        # Allow forwarding between VLANs
-        iifname { "$NIC_I.10", "$NIC_I.20", "$NIC_I.30" } oifname { "$NIC_I.10", "$NIC_I.20", "$NIC_I.30" } accept
+        # Allow forwarding from LAN out to WAN
+        iifname "$NIC_I" oifname "$NIC_E" accept
+        # Allow inbound WAN traffic only to the reverse proxy on 80/443
+        iifname "$NIC_E" oifname "$NIC_I" ip daddr 10.0.0.30 tcp dport {80,443} accept
+        # Allow forwarding within the LAN
+        iifname "$NIC_I" oifname "$NIC_I" accept
     }
 
     chain output {
@@ -173,5 +156,4 @@ EOT
 sudo nft -f /etc/nftables.conf
 # Verify
 sudo nft list ruleset
-
 sudo systemctl restart nftables
