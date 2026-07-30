@@ -1,34 +1,60 @@
-# Server Roles & VMware Specifications (Ubuntu 26.04)
+# 02 — VMware Setup
 
-**Part of:** Multi-Tiered Linux Environment  
-**Related:** [Main Architecture](../00-architecture.md) | [Network Design](04-network-design-security.md)
+## Hypervisor
 
-## Virtual Machine Summary
+This lab is built on a single VMware host on Vmware Workstation. One physical host. One internal network. One external network. Using Ubuntu Server/Desktop 26.04 LTS as the OS.
 
-| Server ID | Hostname                | Role                               | Ubuntu Edition | vCPU | RAM  | Disk | VMware Network   | Logical VLAN |
-| :-------- | :---------------------- | :--------------------------------- | :------------- | :--- | :--- | :--- | :--------------- | :----------- |
-| **1**     | `dns.infra.lab`         | Internal DNS & nameserver          | 26.04 Server   | 1    | 1 GB | 20GB | Host‑Only (trunk) | 20 (Infra)   |
-| **2**     | `db.infra.lab`          | Relational database                | 26.04 Server   | 2    | 4 GB | 40GB | Host‑Only (trunk) | 20 (Infra)   |
-| **3**     | `web.dmz.lab`           | Application server                 | 26.04 Server   | 2    | 2 GB | 30GB | Host‑Only (trunk) | 30 (DMZ)     |
-| **4**     | `proxy.dmz.lab`         | Reverse proxy / load balancer      | 26.04 Server   | 1    | 1 GB | 20GB | Host‑Only (trunk) | 30 (DMZ)     |
-| **5**     | `logs.infra.lab`        | Centralised logging (Loki stack)   | 26.04 Server   | 2    | 2 GB | 50GB | Host‑Only (trunk) | 20 (Infra)   |
-| **6**     | `monitor.infra.lab`     | Metrics & alerting                 | 26.04 Server   | 2    | 2 GB | 40GB | Host‑Only (trunk) | 20 (Infra)   |
-| **7**     | `admin.infra.lab`       | Admin jump host & orchestration    | **26.04 Desktop** | 2    | 4 GB | 60GB | Host‑Only (trunk) | 10 (Mgmt)    |
-| **8**     | `router.infra.lab`      | **Router, DHCP & NAT gateway**     | 26.04 Server   | 1    | 1 GB | 20GB | Host‑Only + **Bridged** | Trunk + WAN |
+## Networks in VMware
 
-## VMware Virtual Network Editor Setup
+| VMware network | Type | Purpose | Maps to |
+|---|---|---|---|
+| `VMnet-WAN` | Bridged | Uplink to the internet/host network | `firewall`'s `NIC_E` |
+| `VMnet-LAN` | Host-only | The internal 10.0.0.0/24 lab network | Every VM's `NIC_I` |
 
-1. **Host‑Only (VMnet1)** – Subnet `10.0.0.0/24` (disable built‑in DHCP).  
-   - Connect **all 8 VMs** to this network.  
-   - This is our **VLAN trunk** link.  
+**`firewall` is the only VM with access to both networks in the lab.**
 
-2. **Bridged (VMnet0)** – Connect **only `router.infra.lab`** to this network.  
-   - Provides internet access (via your host’s physical NIC).  
+## Why one flat network instead of VLANs
 
-> **Why this works:** The router server will tag/untag 802.1Q frames on the Host‑Only interface. The other servers will create VLAN sub‑interfaces to place themselves into the correct logical broadcast domain.
+VLAN trunking isn't available in VMware Workstation. Virtual switches don't do 802.1Q tagging with some exceptions. So design the LAN as one flat network and put the segmentation logic on each host's firewall.
 
-## OS Installation Notes
+## Per-VM resource allocation
 
-- **Servers 1–6 & 8:** Ubuntu 26.04 LTS **Server** – minimal installation + OpenSSH.  
-- **Server 7 (Admin):** Ubuntu 26.04 LTS **Desktop** – for GUI tools and local development.  
-- **Static IPs** are assigned inside the guest OS via **VLAN sub‑interfaces** (not on the physical `eth0`). The physical `eth0` will have **no IP** (or a dummy IP) to avoid confusion.
+| Hostname | vCPU | RAM | Disk | Notes |
+|---|---|---|---|---|
+| `firewall` | 2 | 4 GB | 20 GB | **Two NICs** (WAN + LAN) |
+| `dhcp` | 1 | 4 GB | 20 GB | DHCP |
+| `dns1` | 1 | 4 GB | 20 GB | Primary authoritative only dns |
+| `dns2` | 1 | 4 GB | 20 GB | secondary to `dns1` |
+| `dns-rslv` | 1 | 4 GB | 20 GB | caching resolver, no zone files |
+| `admin` | 1 | 4 GB | 30 GB | Holds Ansible repo/playbooks |
+| `db1` | 4 | 8 GB | 40 GB | PostgreSQL primary |
+| `db2` | 4 | 8 GB | 40 GB | Replica, mirror `db1`'s sizing |
+| `proxy` | 2 | 4 GB | 20 GB | Nginx |
+| `app1` (+ app2/app3) | 1-4 | 4-8 GB | 20-30 GB | Sized to app needs |
+| `logs` | 2 | 4 GB | 40 GB | Elasticsearch |
+| `analytics` | 2 | 4 GB | 40 GB | Grafana + Prometheus/exporters |
+
+Databases, apps, proxy, firewall, logs, analytics are the main ones for considering changes as they are the most affected by network size and user quantity.
+
+## Base install process
+
+1. Create the VM per the template above. **For `firewall` only**, add the second NIC before first boot (WAN + LAN). Every other VM gets a single NIC on the LAN network.
+2. Install Ubuntu Server 26.04 LTS minimal, set user as sysadmin, OpenSSH enabled.
+3. On boot confirm DHCP-assigned connectivity, `ssh` working, then run the set up script for that server.
+
+   **Bring-up order matters**, because of the resolution dependency chain:
+   - Bring up `firewall` first (it needs to be reachable for anything else to get outbound internet access).
+   - Bring up `dns-rslv` next, everything points its DNS at `.53`.
+   - Bring up `dhcp` (DHCP now hands out `firewall` as gateway and `dns-rslv` as DNS — both need to already exist for new DHCP clients to get a fully working lease).
+   - Bring up `dns1`/`dns2` next.
+   - Everything else (`admin`, `db1/db2`, `proxy`, `app1`, `logs`, `analytics`) can come up in any order after that, using static IPs and pointing at `firewall`/`dns-rslv`.
+
+4. After the set up script deploys the static IP, reconnect on the new address.
+5. Run `ansible_client.sh`, `ssh-copy-id` from `admin`, then lock the account (`passwd -l ansible`).
+6. Snapshot once the node is confirmed working and reachable via Ansible.
+
+## Snapshots
+
+Two snapshots
+- First: post base install. 
+- Second: post set up script once the service is confirmed working.
