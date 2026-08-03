@@ -257,7 +257,11 @@ Sync {
     UDP Default {
         IPv4_address $LAN_IP
         Port 3780
+        Interface $NIC_I
         IPv4_Destination_Address $PRIMARY_FIREWALL_LAN_IP
+        SndSocketBuffer 1249280
+        RcvSocketBuffer 1249280
+        Checksum on
     }
 }
 EOT
