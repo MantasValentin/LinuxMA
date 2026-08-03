@@ -36,9 +36,8 @@ sudo tee /etc/systemd/network/10-lan.network > /dev/null <<EOT
 Name=$NIC
 
 [Network]
-Address=10.0.0.3/24
+Address=10.0.0.4/24
 Gateway=10.0.0.1
-DNS=10.0.0.53 10.0.0.54
 EOT
 
 # dns resolution goes to dns-rslv

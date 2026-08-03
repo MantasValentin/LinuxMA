@@ -4,13 +4,15 @@
 
 | Range | Tier | Hosts |
 |---|---|---|
-| `10.0.0.1` | Firewall Primary | `firewall1` |
-| `10.0.0.2` | Firewall Secondary | `firewall2` |
-| `10.0.0.3` | DHCP | `dhcp` |
-| `10.0.0.4` | IdM OpenIPA Primary | `ipa1` |
-| `10.0.0.5` | IdM OpenIPA Secondary | `ipa2` |
-| `10.0.0.6` | Authoritative DNS Primary | `dns1` |
-| `10.0.0.7` | Authoritative DNS Secondary | `dns2` |
+
+| `10.0.0.1` | VIP | reserved for virtual IP |
+| `10.0.0.2` | Firewall Secondary | `firewall1` |
+| `10.0.0.3` | Firewall Secondary | `firewall2` |
+| `10.0.0.4` | DHCP | `dhcp` |
+| `10.0.0.5` | IdM OpenIPA Primary | `ipa1` |
+| `10.0.0.6` | IdM OpenIPA Secondary | `ipa2` |
+| `10.0.0.7` | Authoritative DNS Primary | `dns1` |
+| `10.0.0.8` | Authoritative DNS Secondary | `dns2` |
 | `10.0.0.20–29` | Management | `admin` (`.20`) |
 | `10.0.0.30–39` | Observability | `logs` (`.30`), `analytics` (`.31`) |
 | `10.0.0.40–49` | Database | `db1` (`.40`), `db2` (`.41`) |
@@ -61,7 +63,7 @@ Every host follows the same basic structure: default-drop `input`, explicit acce
 
 ## Management access pattern
 
-- SSH is only accepted from range `10.0.0.10-19` on every node from `admin` servers.
+- SSH is only accepted from range `10.0.0.20-29` on every node from `admin` servers.
 - `admin` runs the Ansible controller and holds the only private key for the `ansible` service account.
 - No human user logs in as `ansible`; it exists solely for Ansible's own SSH transport.
 

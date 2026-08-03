@@ -39,7 +39,6 @@ Name=$NIC
 [Network]
 Address=10.0.0.53/24
 Gateway=10.0.0.1
-DNS=127.0.0.1
 EOT
 
 # Restart networking
@@ -75,13 +74,13 @@ sudo tee /etc/bind/named.conf.local > /dev/null <<'EOT'
 zone "lab.local" {
     type forward;
     forward only;
-    forwarders { 10.0.0.6; 10.0.0.7; };
+    forwarders { 10.0.0.7; 10.0.0.8; };
 };
 
 zone "0.0.10.in-addr.arpa" {
     type forward;
     forward only;
-    forwarders { 10.0.0.6; 10.0.0.7; };
+    forwarders { 10.0.0.7; 10.0.0.8; };
 };
 EOT
 

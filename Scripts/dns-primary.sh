@@ -29,9 +29,8 @@ sudo tee /etc/systemd/network/10-lan.network > /dev/null <<EOT
 Name=$NIC
 
 [Network]
-Address=10.0.0.6/24
+Address=10.0.0.7/24
 Gateway=10.0.0.1
-DNS=10.0.0.53 10.0.0.54
 EOT
 
 sudo rm -f /etc/resolv.conf
@@ -80,7 +79,7 @@ zone "0.0.10.in-addr.arpa" {
     notify yes;
 };
 
-server 10.0.0.7 {
+server 10.0.0.8 {
     keys { xfer-key; };
 };
 EOT
@@ -98,16 +97,18 @@ $TTL    3600
 @       IN      NS      ns1.lab.local.
 @       IN      NS      ns2.lab.local.
 
+; 10.0.0.1 is reserved for a virtual IP
+
 ; Firewall
-firewall1    IN      A       10.0.0.1
-firewall2    IN      A       10.0.0.2
+firewall1    IN      A       10.0.0.2
+firewall2    IN      A       10.0.0.3
 
 ; DHCP
-dhcp      IN      A       10.0.0.3
+dhcp      IN      A       10.0.0.4
 
 ; IPA
-ipa1        IN      A       10.0.0.4
-ipa2        IN      A       10.0.0.5
+ipa1        IN      A       10.0.0.5
+ipa2        IN      A       10.0.0.6
 
 ; Kerberos/LDAP service discovery
 _kerberos-master._tcp.lab.local. IN SRV 0 100 88  ipa1.lab.local.
@@ -125,10 +126,10 @@ _ldap._tcp.lab.local.            IN SRV 0 100 389 ipa2.lab.local.
 _kerberos.lab.local.             IN TXT "LAB.LOCAL"
 
 ; Authoritative DNS
-dns1        IN      A       10.0.0.6
-ns1         IN      A       10.0.0.6
-dns2        IN      A       10.0.0.7
-ns2         IN      A       10.0.0.7
+dns1        IN      A       10.0.0.7
+ns1         IN      A       10.0.0.7
+dns2        IN      A       10.0.0.8
+ns2         IN      A       10.0.0.8
 
 ; Management
 admin       IN      A       10.0.0.20
@@ -166,21 +167,21 @@ $TTL    3600
 @       IN      NS      ns2.lab.local.
 
 ; Firewall
-1       IN      PTR     firewall1.lab.local.
-2       IN      PTR     firewall2.lab.local.
+2       IN      PTR     firewall1.lab.local.
+3       IN      PTR     firewall2.lab.local.
 
 ; DHCP
-3       IN      PTR     dhcp.lab.local.
+4       IN      PTR     dhcp.lab.local.
 
 ; IPA
-4       IN      PTR     ipa1.lab.local.
-5       IN      PTR     ipa2.lab.local.
+5       IN      PTR     ipa1.lab.local.
+6       IN      PTR     ipa2.lab.local.
 
 ; Authoritative DNS
-6      IN      PTR     dns1.lab.local.
-6      IN      PTR     ns1.lab.local.
-7      IN      PTR     dns2.lab.local.
-7      IN      PTR     ns2.lab.local.
+7      IN      PTR     dns1.lab.local.
+7      IN      PTR     ns1.lab.local.
+8      IN      PTR     dns2.lab.local.
+8      IN      PTR     ns2.lab.local.
 
 ; Management
 20      IN      PTR     admin.lab.local.

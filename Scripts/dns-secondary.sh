@@ -37,9 +37,8 @@ sudo tee /etc/systemd/network/10-lan.network > /dev/null <<EOT
 Name=$NIC
 
 [Network]
-Address=10.0.0.7/24
+Address=10.0.0.8/24
 Gateway=10.0.0.1
-DNS=10.0.0.53 10.0.0.54
 EOT
 
 sudo rm -f /etc/resolv.conf
@@ -72,17 +71,17 @@ include "/etc/bind/tsig-xfer.key";
 
 zone "lab.local" {
     type secondary;
-    primaries { 10.0.0.6 key xfer-key; };
+    primaries { 10.0.0.7 key xfer-key; };
     file "/var/cache/bind/db.lab.local";
 };
 
 zone "0.0.10.in-addr.arpa" {
     type secondary;
-    primaries { 10.0.0.6 key xfer-key; };
+    primaries { 10.0.0.7 key xfer-key; };
     file "/var/cache/bind/db.10.0.0";
 };
 
-server 10.0.0.6 {
+server 10.0.0.7 {
     keys { xfer-key; };
 };
 EOT
