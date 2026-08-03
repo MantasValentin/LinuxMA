@@ -71,8 +71,13 @@ Name=$NIC_I
 Address=$LAN_IP/24
 EOT
 
+# Get rid of netplan configuration files
+sudo rm -fr /etc/netplan/
+
 # Restart networking
-sudo systemctl enable systemd-networkd --now
+sudo systemctl unmask systemd-networkd systemd-networkd-wait-online
+sudo systemctl enable systemd-networkd systemd-networkd-wait-online
+sudo systemctl restart systemd-networkd
 sudo networkctl reload
 sudo networkctl reconfigure "$NIC_E" "$NIC_I"
 
@@ -220,7 +225,6 @@ sudo sysctl -p /etc/sysctl.d/99-conntrack.conf
 
 sudo tee /etc/conntrackd/conntrackd.conf > /dev/null <<EOT
 General {
-    Nice -10
     HashSize 131072
     HashLimit 1048576
     LogFile on
@@ -228,7 +232,6 @@ General {
     LockFile /var/lock/conntrackd.lock
     UNIX {
         Path /var/run/conntrackd.ctl
-        Backlog 20
     }
     NetlinkBufferSize 2097152
     NetlinkBufferSizeMaxGrowth 8388608
@@ -293,6 +296,13 @@ sudo tee /etc/systemd/system/keepalived.service.d/override.conf > /dev/null <<EO
 After=conntrackd.service
 Wants=conntrackd.service
 EOT
+
+# Configure conntrackd service priority
+sudo mkdir -p /etc/systemd/system/conntrackd.service.d
+sudo tee /etc/systemd/system/conntrackd.service.d/priority.conf > /dev/null <<'EOF'
+[Service]
+Nice=-10
+EOF
 
 sudo systemctl daemon-reload
 sudo systemctl enable --now conntrackd
