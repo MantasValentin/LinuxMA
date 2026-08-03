@@ -131,6 +131,7 @@ table inet filter {
 
         # For conntrackd to sync both firewalls
         iifname "$NIC_I" tcp dport 3780 accept
+        iifname "$NIC_I" udp dport 3780 accept
 
         # SSH only from the management range and LAN NIC
         iifname "$NIC_I" ip saddr 10.0.0.20-10.0.0.29 tcp dport 22 ct state new accept
@@ -239,7 +240,7 @@ General {
     NetlinkEventsReliable off
     Filter From Userspace {
         Protocol Accept {
-            TCP
+            UDP
         }
         Address Ignore {
             IPv4_address 127.0.0.1
@@ -253,7 +254,7 @@ Sync {
         CommitTimeout 180
         PurgeTimeout 60
     }
-    TCP Default {
+    UDP Default {
         IPv4_address $LAN_IP
         Port 3780
         IPv4_Destination_Address $PRIMARY_FIREWALL_LAN_IP
