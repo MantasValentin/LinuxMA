@@ -265,9 +265,6 @@ CONNTRACKD_CONFIG=/etc/conntrackd/conntrackd.conf
 
 case "$1" in
     master)
-        # Small delay lets a final burst of in-flight sync updates land
-        # before we commit the external cache into the kernel table.
-        sleep 0.5
         $CONNTRACKD_BIN -C $CONNTRACKD_CONFIG -c
         $CONNTRACKD_BIN -C $CONNTRACKD_CONFIG -B
         logger "keepalived: entering MASTER, committed conntrack cache"
@@ -290,6 +287,7 @@ sudo chmod +x /etc/keepalived/notify.sh
 sudo chown root:root /etc/keepalived/notify.sh
 
 # Make sure conntrackd is up before keepalived
+sudo mkdir -p /etc/systemd/system/keepalived.service.d
 sudo tee /etc/systemd/system/keepalived.service.d/override.conf > /dev/null <<EOT
 [Unit]
 After=conntrackd.service
