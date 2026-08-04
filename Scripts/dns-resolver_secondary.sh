@@ -1,14 +1,20 @@
-# Set hostname
-sudo hostnamectl set-hostname "dns-rslv2"
+#!/bin/bash
+set -euo pipefail
 
 # Interface
 NIC=ens34
+LAN_IP=10.0.0.54
+LAN_SUBNET_MASK=24
+GATEWAY=10.0.0.1
 
 # Temporary bootstrap networking
 # sudo ip link set "$NIC" up
 # sudo ip addr add 10.0.0.250/24 dev "$NIC"
 # sudo ip route add default via 10.0.0.1
 # echo "nameserver 1.1.1.1" | sudo tee /etc/resolv.conf > /dev/null
+
+# Set hostname
+sudo hostnamectl set-hostname "dns-rslv2"
 
 # Update and upgrade
 sudo apt update && sudo apt upgrade -y
@@ -37,12 +43,17 @@ sudo tee /etc/systemd/network/10-lan.network > /dev/null <<EOT
 Name=$NIC
 
 [Network]
-Address=10.0.0.54/24
-Gateway=10.0.0.1
+Address=$LAN_IP/$LAN_SUBNET_MASK
+Gateway=$GATEWAY
 EOT
 
+# Get rid of netplan configuration files
+sudo rm -fr /etc/netplan/
+
 # Restart networking
-sudo systemctl enable systemd-networkd --now
+sudo systemctl unmask systemd-networkd systemd-networkd-wait-online
+sudo systemctl enable systemd-networkd systemd-networkd-wait-online
+sudo systemctl restart systemd-networkd
 sudo networkctl reload
 sudo networkctl reconfigure "$NIC"
 
@@ -51,7 +62,7 @@ sudo rm -f /etc/resolv.conf
 echo "nameserver 127.0.0.1" | sudo tee /etc/resolv.conf
 
 # Recurse and cache for the LAN, forward everything else to public resolvers
-sudo tee /etc/bind/named.conf.options > /dev/null <<'EOT'
+sudo tee /etc/bind/named.conf.options > /dev/null <<EOT
 options {
     directory "/var/cache/bind";
     recursion yes;
@@ -70,7 +81,7 @@ options {
 EOT
 
 # lab.local get forwarded specifically to the authoritative pair
-sudo tee /etc/bind/named.conf.local > /dev/null <<'EOT'
+sudo tee /etc/bind/named.conf.local > /dev/null <<EOT
 zone "lab.local" {
     type forward;
     forward only;
@@ -89,7 +100,7 @@ sudo named-checkconf
 sudo systemctl enable bind9
 sudo systemctl restart bind9
 
-sudo tee /etc/nftables.conf > /dev/null <<'EOT'
+sudo tee /etc/nftables.conf > /dev/null <<EOT
 #!/usr/sbin/nft -f
 
 flush ruleset

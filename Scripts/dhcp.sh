@@ -1,5 +1,11 @@
+#!/bin/bash
+set -euo pipefail
+
 # Interface
 NIC=ens34
+LAN_IP=10.0.0.4
+LAN_SUBNET_MASK=24
+GATEWAY=10.0.0.1
 
 # Temporary bootstrap networking before pulling this script to run it
 # sudo ip link set "$NIC" up
@@ -36,8 +42,8 @@ sudo tee /etc/systemd/network/10-lan.network > /dev/null <<EOT
 Name=$NIC
 
 [Network]
-Address=10.0.0.4/24
-Gateway=10.0.0.1
+Address=$LAN_IP/$LAN_SUBNET_MASK
+Gateway=$GATEWAY
 EOT
 
 # dns resolution goes to dns-rslv
@@ -46,6 +52,16 @@ sudo tee /etc/resolv.conf > /dev/null <<EOT
 nameserver 10.0.0.53
 nameserver 10.0.0.54
 EOT
+
+# Get rid of netplan configuration files
+sudo rm -fr /etc/netplan/
+
+# Restart networking
+sudo systemctl unmask systemd-networkd systemd-networkd-wait-online
+sudo systemctl enable systemd-networkd systemd-networkd-wait-online
+sudo systemctl restart systemd-networkd
+sudo networkctl reload
+sudo networkctl reconfigure "$NIC"
 
 # Configure dnsmasq with DHCP only, DNS listener disabled (port=0)
 sudo rm -f /etc/dnsmasq.conf
@@ -57,7 +73,7 @@ interface=$NIC
 dhcp-range=10.0.0.100,10.0.0.200,255.255.255.0,24h
 
 # Default gateway handed to clients is the firewall
-dhcp-option=3,10.0.0.1
+dhcp-option=3,$GATEWAY
 
 # DNS server handed to clients is dns-rslv
 dhcp-option=6,10.0.0.53,10.0.0.54
@@ -73,7 +89,7 @@ sudo systemctl enable dnsmasq
 sudo systemctl restart dnsmasq
 
 # Firewall input filtering only
-sudo tee /etc/nftables.conf > /dev/null <<'EOT'
+sudo tee /etc/nftables.conf > /dev/null <<EOT
 #!/usr/sbin/nft -f
 
 flush ruleset

@@ -1,3 +1,12 @@
+#!/bin/bash
+set -euo pipefail
+
+# Interface
+NIC=ens34
+LAN_IP=10.0.0.8
+LAN_SUBNET_MASK=24
+GATEWAY=10.0.0.1
+
 # Set hostname
 sudo hostnamectl set-hostname "dns2"
 
@@ -13,22 +22,10 @@ sudo apt update && sudo apt upgrade -y
 # git             - pulling config from your repo
 sudo apt install -y bind9 bind9utils bind9-doc dnsutils nftables openssh-server git
 
-sudo systemctl enable NetworkManager --now
 sudo systemctl enable nftables --now
 sudo systemctl enable ssh --now
 
-# Set this to your actual interface name: ens18, eth0, enp0s3, etc.
-NIC=ens34
-
-# Stop NetworkManager from writing its own resolv.conf
-sudo tee /etc/NetworkManager/conf.d/dns.conf > /dev/null <<EOT
-[main]
-dns=none
-EOT
-
-sudo systemctl restart NetworkManager
-
-# systemd-resolved isn't needed, bind9 serves the zone directly
+# Disable automatic dns resolution
 sudo systemctl disable --now systemd-resolved
 
 # LAN interface
@@ -37,15 +34,26 @@ sudo tee /etc/systemd/network/10-lan.network > /dev/null <<EOT
 Name=$NIC
 
 [Network]
-Address=10.0.0.8/24
-Gateway=10.0.0.1
+Address=$LAN_IP/$LAN_SUBNET_MASK
+Gateway=$GATEWAY
 EOT
 
+# dns resolution goes to dns-rslv
 sudo rm -f /etc/resolv.conf
 sudo tee /etc/resolv.conf > /dev/null <<EOT
 nameserver 10.0.0.53
 nameserver 10.0.0.54
 EOT
+
+# Get rid of netplan configuration files
+sudo rm -fr /etc/netplan/
+
+# Restart networking
+sudo systemctl unmask systemd-networkd systemd-networkd-wait-online
+sudo systemctl enable systemd-networkd systemd-networkd-wait-online
+sudo systemctl restart systemd-networkd
+sudo networkctl reload
+sudo networkctl reconfigure "$NIC"
 
 # Need to make sure that TSIG key is copied to the secondary
 # Lock access to the key
@@ -53,7 +61,7 @@ sudo chown root:bind /etc/bind/tsig-xfer.key
 sudo chmod 640 /etc/bind/tsig-xfer.key
 
 # Deploy the config 
-sudo tee /etc/bind/named.conf.options > /dev/null <<'EOT'
+sudo tee /etc/bind/named.conf.options > /dev/null <<EOT
 options {
     directory "/var/cache/bind";
     recursion no;
@@ -66,7 +74,7 @@ options {
 };
 EOT
 
-sudo tee /etc/bind/named.conf.local > /dev/null <<'EOT'
+sudo tee /etc/bind/named.conf.local > /dev/null <<EOT
 include "/etc/bind/tsig-xfer.key";
 
 zone "lab.local" {
@@ -93,7 +101,7 @@ sudo systemctl enable bind9
 sudo systemctl restart bind9
 
 # Firewall Config
-sudo tee /etc/nftables.conf > /dev/null <<'EOT'
+sudo tee /etc/nftables.conf > /dev/null <<EOT
 #!/usr/sbin/nft -f
 
 flush ruleset
