@@ -97,8 +97,8 @@ EOT
 
 sudo named-checkconf
 
-sudo systemctl enable bind9
-sudo systemctl restart bind9
+sudo systemctl enable named
+sudo systemctl restart named
 
 sudo tee /etc/nftables.conf > /dev/null <<EOT
 #!/usr/sbin/nft -f
@@ -139,3 +139,4 @@ EOT
 sudo nft -f /etc/nftables.conf
 sudo nft list ruleset
 sudo systemctl restart nftables
+sudo systemctl daemon-reload

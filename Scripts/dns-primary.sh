@@ -229,8 +229,8 @@ sudo named-checkconf
 sudo named-checkzone lab.local /etc/bind/db.lab.local
 sudo named-checkzone 0.0.10.in-addr.arpa /etc/bind/db.10.0.0
 
-sudo systemctl enable bind9
-sudo systemctl restart bind9
+sudo systemctl enable named
+sudo systemctl restart named
 
 # Firewall Config
 sudo tee /etc/nftables.conf > /dev/null <<EOT
@@ -272,3 +272,4 @@ EOT
 sudo nft -f /etc/nftables.conf
 sudo nft list ruleset
 sudo systemctl restart nftables
+sudo systemctl daemon-reload

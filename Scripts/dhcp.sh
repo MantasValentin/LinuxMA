@@ -127,3 +127,4 @@ EOT
 sudo nft -f /etc/nftables.conf
 sudo nft list ruleset
 sudo systemctl restart nftables
+sudo systemctl daemon-reload
