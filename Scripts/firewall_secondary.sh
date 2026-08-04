@@ -1,19 +1,27 @@
 #!/bin/bash
 set -euo pipefail
 
-# Set hostname
-sudo hostnamectl set-hostname "firewall2"
-
 # External (WAN) and internal (LAN) interfaces
 NIC_E=ens33
 NIC_I=ens34
 
-LAN_IP=10.0.0.3
-PRIMARY_FIREWALL_LAN_IP=10.0.0.2
+WAN_IP=192.168.0.4
+WAN_VIP=192.168.0.2
+WAN_GATEWAY=192.168.0.1
+WAN_SUBNET_MASK=24
+MASTER_FIREWALL_WAN_IP=192.168.0.3
 
-# Shared secrets
+LAN_IP=10.0.0.3
+LAN_VIP=10.0.0.1
+LAN_SUBNET_MASK=24
+MASTER_FIREWALL_LAN_IP=10.0.0.2
+
+# Shared secret
 # identical between firewall_primary.sh and firewall_secondary.sh
 VRRP_AUTH_PASS="VRRP_Secret"
+
+# Set hostname
+sudo hostnamectl set-hostname "firewall2"
 
 # Update and upgrade
 sudo apt update && sudo apt upgrade -y
@@ -56,10 +64,8 @@ sudo tee /etc/systemd/network/10-wan.network > /dev/null <<EOT
 Name=$NIC_E
 
 [Network]
-DHCP=yes
-
-[DHCPv4]
-UseDNS=no
+Address=$WAN_IP/$WAN_SUBNET_MASK
+Gateway=$WAN_GATEWAY
 EOT
 
 # LAN interface
@@ -68,7 +74,7 @@ sudo tee /etc/systemd/network/20-lan.network > /dev/null <<EOT
 Name=$NIC_I
 
 [Network]
-Address=$LAN_IP/24
+Address=$LAN_IP/$LAN_SUBNET_MASK
 EOT
 
 # Get rid of netplan configuration files
@@ -182,6 +188,17 @@ vrrp_script chk_wan {
     rise 2
 }
 
+vrrp_sync_group VG_FIREWALL {
+    group {
+        VI_1
+        VI_2
+    }
+
+    notify_master "/etc/keepalived/notify.sh master"
+    notify_backup "/etc/keepalived/notify.sh backup"
+    notify_fault  "/etc/keepalived/notify.sh fault"
+}
+
 vrrp_instance VI_1 {
     state BACKUP
     interface $NIC_I
@@ -196,7 +213,7 @@ vrrp_instance VI_1 {
     }
 
     virtual_ipaddress {
-        10.0.0.1/24
+        $LAN_VIP/$LAN_SUBNET_MASK
     }
 
     track_interface {
@@ -207,10 +224,33 @@ vrrp_instance VI_1 {
     track_script {
         chk_wan
     }
+}
 
-    notify_master "/etc/keepalived/notify.sh master"
-    notify_backup "/etc/keepalived/notify.sh backup"
-    notify_fault "/etc/keepalived/notify.sh fault"
+vrrp_instance VI_2 {
+    state BACKUP
+    interface $NIC_E
+    virtual_router_id 200
+    priority 100
+    advert_int 1
+    preempt_delay 3
+
+    authentication {
+        auth_type PASS
+        auth_pass $VRRP_AUTH_PASS
+    }
+
+    virtual_ipaddress {
+        $WAN_VIP/$WAN_SUBNET_MASK
+    }
+
+    track_interface {
+        $NIC_E
+        $NIC_I
+    }
+
+    track_script {
+        chk_wan
+    }
 }
 EOT
 
@@ -258,7 +298,7 @@ Sync {
         IPv4_address $LAN_IP
         Port 3780
         Interface $NIC_I
-        IPv4_Destination_Address $PRIMARY_FIREWALL_LAN_IP
+        IPv4_Destination_Address $MASTER_FIREWALL_LAN_IP
         SndSocketBuffer 1249280
         RcvSocketBuffer 1249280
         Checksum on
