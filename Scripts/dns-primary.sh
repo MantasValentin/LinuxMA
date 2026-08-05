@@ -125,6 +125,8 @@ dhcp      IN      A       10.0.0.4
 ; IPA
 ipa1        IN      A       10.0.0.5
 ipa2        IN      A       10.0.0.6
+ipa-ca      IN      A       10.0.0.5
+ipa-ca      IN      A       10.0.0.6
 
 ; Kerberos/LDAP service discovery
 _kerberos-master._tcp.lab.local. IN SRV 0 100 88  ipa1.lab.local.

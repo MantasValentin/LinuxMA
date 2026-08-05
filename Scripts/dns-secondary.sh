@@ -7,6 +7,14 @@ LAN_IP=10.0.0.8
 LAN_SUBNET_MASK=24
 GATEWAY=10.0.0.1
 
+if [ ! -f /etc/bind/tsig-xfer.key ]; then
+    echo "ERROR: /etc/bind/tsig-xfer.key not found."
+    echo "Copy it from dns1 first, e.g.:"
+    echo "  scp admin@10.0.0.7:/etc/bind/tsig-xfer.key ./tsig-xfer.key"
+    echo "  sudo mv tsig-xfer.key /etc/bind/tsig-xfer.key"
+    exit 1
+fi
+
 # Set hostname
 sudo hostnamectl set-hostname "dns2"
 

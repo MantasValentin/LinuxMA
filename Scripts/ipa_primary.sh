@@ -1,68 +1,103 @@
-# FreeIPA must have a real FQDN hostname, not a short name
+#!/bin/bash
+set -euo pipefail
+
+# Check if the correct number of arguments is provided
+if [ "$#" -ne 2 ]; then
+    echo "Usage: $0 <IPA_ADMIN_PASSWORD> <IPA_DM_PASSWORD>"
+    echo "Example: bash ipa_primary.sh password1 password2"
+    exit 1
+fi
+
+# Input Database Manager password and Admin password
+IPA_ADMIN_PASSWORD=$1
+IPA_DM_PASSWORD=$2
+
+# Interface
+NIC=ens34
+LAN_IP=10.0.0.5
+LAN_SUBNET_MASK=24
+GATEWAY=10.0.0.1
+
+# FreeIPA must have a real FQDN hostname
 sudo hostnamectl set-hostname "ipa1.lab.local"
 
 # Update and upgrade
 sudo apt update && sudo apt upgrade -y
 
-# freeipa-server   - the IPA stack (389-ds, MIT Kerberos, Dogtag CA, web UI)
+# freeipa-server   - the IPA stack
 # chrony           - accurate time is mandatory for Kerberos
 # nftables         - firewall
 # openssh-server   - remote management
 # git              - pulling config from your repo
 sudo apt install -y freeipa-server chrony nftables openssh-server git
 
-sudo systemctl enable NetworkManager --now
-sudo systemctl enable nftables --now
-sudo systemctl enable ssh --now
-sudo systemctl enable chrony --now
-
-NIC=ens34
-
-sudo tee /etc/NetworkManager/conf.d/dns.conf > /dev/null <<EOT
-[main]
-dns=none
-EOT
-
-sudo systemctl restart NetworkManager
+# Disable automatic dns resolution
 sudo systemctl disable --now systemd-resolved
 
-# Gateway is the firewall (10.0.0.1), dns resolution is dns-rslv
-sudo nmcli connection add type ethernet ifname "$NIC" con-name LAN \
-    ipv4.method manual \
-    ipv4.addresses 10.0.0.4/24 \
-    ipv4.gateway 10.0.0.1 \
-    ipv4.dns "10.0.0.53" \
-    ipv4.ignore-auto-dns yes \
-    connection.autoconnect yes
-sudo nmcli connection up LAN
+sudo systemctl enable nftables --now
+sudo systemctl enable ssh --now
 
-sudo systemctl restart NetworkManager
+# LAN interface
+sudo tee /etc/systemd/network/10-lan.network > /dev/null <<EOT
+[Match]
+Name=$NIC
 
+[Network]
+Address=$LAN_IP/$LAN_SUBNET_MASK
+Gateway=$GATEWAY
+EOT
+
+# dns resolution goes to dns-rslv
 sudo rm -f /etc/resolv.conf
-echo "nameserver 10.0.0.53" | sudo tee /etc/resolv.conf
+sudo tee /etc/resolv.conf > /dev/null <<EOT
+nameserver 10.0.0.53
+nameserver 10.0.0.54
+EOT
 
-echo ">>> Verifying forward/reverse DNS before installing (required by ipa-server-install)"
-getent hosts ipa1.lab.local
-dig +short -x 10.0.0.7
-echo ">>> If either of the above is empty, fix DNS on dns1/dns2 first and re-run."
+# Get rid of netplan configuration files
+sudo rm -fr /etc/netplan/
 
-# --- IPA server install ---
-# Not using --setup-dns since dns1/dns2 already serve lab.local authoritatively.
-# Set these from environment/vault rather than hardcoding in a committed script:
-#   IPA_DM_PASSWORD  - Directory Manager password
-#   IPA_ADMIN_PASSWORD - admin user password
+# Restart networking
+sudo systemctl unmask systemd-networkd systemd-networkd-wait-online
+sudo systemctl enable systemd-networkd systemd-networkd-wait-online
+sudo systemctl restart systemd-networkd
+sudo networkctl reload
+sudo networkctl reconfigure "$NIC"
+
+# NTP configuration
+sudo tee /etc/chrony/chrony.conf > /dev/null <<EOT
+# Upstream time sources
+pool ntp.ubuntu.com iburst
+
+# Serve time to the LAN
+allow 10.0.0.0/24
+
+# Act as a fallback stratum source if upstream is unreachable
+# (keeps LAN clients roughly in sync with each other even if internet drops)
+local stratum 10
+
+# Step the clock on large offsets instead of just slewing, but only at startup
+makestep 1.0 3
+
+# Record drift for faster resync after reboot
+driftfile /var/lib/chrony/chrony.drift
+EOT
+
+sudo systemctl enable chrony --now
+sudo systemctl restart chrony
+
+# IPA server install
 sudo ipa-server-install \
     --realm=LAB.LOCAL \
     --domain=lab.local \
     --hostname=ipa1.lab.local \
-    --ds-password="${IPA_DM_PASSWORD:?set IPA_DM_PASSWORD}" \
-    --admin-password="${IPA_ADMIN_PASSWORD:?set IPA_ADMIN_PASSWORD}" \
+    --ds-password="$IPA_DM_PASSWORD" \
+    --admin-password="$IPA_ADMIN_PASSWORD" \
     --no-host-dns \
     --no-ntp \
     --unattended
 
-# Firewall Config - LDAP/Kerberos/HTTPS open to the LAN, replication + SSH restricted
-sudo tee /etc/nftables.conf > /dev/null <<'EOT'
+sudo tee /etc/nftables.conf > /dev/null <<EOT
 #!/usr/sbin/nft -f
 
 flush ruleset
@@ -80,8 +115,8 @@ table inet filter {
         # ICMP
         ip protocol icmp accept
 
-        # SSH only from the management range 10.0.0.10-19
-        ip saddr 10.0.0.10-10.0.0.19 tcp dport 22 accept
+        # SSH only from the management range 10.0.0.20-29
+        ip saddr 10.0.0.20-10.0.0.29 tcp dport 22 accept
 
         # Kerberos + kpasswd, from the LAN
         ip saddr 10.0.0.0/24 tcp dport { 88, 464 } accept
@@ -97,7 +132,7 @@ table inet filter {
         ip saddr 10.0.0.0/24 udp dport 123 accept
 
         # Replica install / custodia secret transfer, IPA peer only
-        ip saddr 10.0.0.8 tcp dport 8888 accept
+        ip saddr 10.0.0.6 tcp dport 8888 accept
     }
 
     chain forward {

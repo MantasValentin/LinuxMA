@@ -141,9 +141,6 @@ table inet filter {
 
         # SSH only from the management range and LAN NIC
         iifname "$NIC_I" ip saddr 10.0.0.20-10.0.0.29 tcp dport 22 ct state new accept
-
-        # Allow DHCP on the WAN network
-        iifname "$NIC_E" udp dport 68 accept
     }
 
     chain forward {
@@ -155,11 +152,14 @@ table inet filter {
         # Drop invalid packets
         ct state invalid drop
 
-        # LAN out to the internet
-        iifname "$NIC_I" oifname "$NIC_E" accept
-
-        # WAN in, but only to the reverse proxy on 80/443
         iifname "$NIC_E" oifname "$NIC_I" ip daddr 10.0.0.60 tcp dport { 80, 443 } accept
+
+        iifname "$NIC_I" oifname "$NIC_E" tcp dport { 80, 443 } ct state new accept
+
+        iifname "$NIC_I" oifname "$NIC_E" ip saddr { 10.0.0.53, 10.0.0.54 } ip daddr { 8.8.8.8, 1.1.1.1 } udp dport 53 accept
+        iifname "$NIC_I" oifname "$NIC_E" ip saddr { 10.0.0.53, 10.0.0.54 } ip daddr { 8.8.8.8, 1.1.1.1 } tcp dport 53 accept
+
+        iifname "$NIC_I" oifname "$NIC_E" ip saddr { 10.0.0.5, 10.0.0.6 } udp dport 123 accept
     }
 
     chain output {
