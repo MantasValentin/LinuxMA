@@ -27,14 +27,15 @@ sudo hostnamectl set-hostname "ipa2.lab.local"
 # Update and upgrade
 sudo dnf upgrade -y
 
+# epel-release     - Extra Packages
+sudo dnf install -y epel-release
 # ipa-server       - the IPA stack (RHEL/Rocky package name for FreeIPA)
 # chrony           - accurate time is mandatory for Kerberos
 # nftables         - firewall
 # openssh-server   - remote management
 # git              - pulling config from your repo
-# epel-release     - Extra Packages
 # systemd-networkd - Networking
-sudo dnf install -y ipa-server chrony nftables openssh-server git epel-release systemd-networkd
+sudo dnf install -y ipa-server chrony nftables openssh-server git systemd-networkd
 
 # Rocky uses NetworkManager (not systemd-resolved) to own DNS/interfaces by
 # default - disable and mask it, systemd-networkd takes over below, same
