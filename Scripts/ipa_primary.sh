@@ -44,7 +44,7 @@ sudo dnf install -y ipa-server chrony nftables openssh-server git systemd-networ
 # role netplan removal plays on the Ubuntu box.
 sudo systemctl disable --now NetworkManager
 sudo systemctl mask NetworkManager
-sudo systemctl enable systemd-networkd systemd-networkd-wait-online --now
+sudo systemctl enable systemd-networkd --now
 sudo systemctl enable nftables --now
 
 # ssh service unit is named "sshd" on RHEL/Rocky, not "ssh"
@@ -78,7 +78,7 @@ EOT
 
 # Restart networking (systemd-networkd ships as part of the base systemd
 # package on Rocky too, just disabled by default - same units as Ubuntu)
-sudo systemctl unmask systemd-networkd systemd-networkd-wait-online
+sudo systemctl unmask systemd-networkd
 sudo systemctl restart systemd-networkd
 sudo networkctl reload
 sudo networkctl reconfigure "$NIC"
