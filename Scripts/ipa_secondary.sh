@@ -32,19 +32,16 @@ sudo dnf upgrade -y
 # nftables         - firewall
 # openssh-server   - remote management
 # git              - pulling config from your repo
-sudo dnf install -y ipa-server chrony nftables openssh-server git
-
-# Rocky 8 packages ipa-server behind a module stream - enabling it is a
-# harmless no-op on Rocky 9+ (module doesn't exist there), so this is safe
-# to leave in either way. Comment out if your dnf complains.
-sudo dnf module enable -y idm:DL1 2>/dev/null || true
+# epel-release     - Extra Packages
+# systemd-networkd - Networking
+sudo dnf install -y ipa-server chrony nftables openssh-server git epel-release systemd-networkd
 
 # Rocky uses NetworkManager (not systemd-resolved) to own DNS/interfaces by
 # default - disable and mask it, systemd-networkd takes over below, same
 # role netplan removal plays on the Ubuntu box.
 sudo systemctl disable --now NetworkManager
 sudo systemctl mask NetworkManager
-
+sudo systemctl enable systemd-networkd systemd-networkd-wait-online --now
 sudo systemctl enable nftables --now
 
 # ssh service unit is named "sshd" on RHEL/Rocky, not "ssh"
@@ -79,7 +76,6 @@ EOT
 # Restart networking (systemd-networkd ships as part of the base systemd
 # package on Rocky too, just disabled by default - same units as Ubuntu)
 sudo systemctl unmask systemd-networkd systemd-networkd-wait-online
-sudo systemctl enable systemd-networkd systemd-networkd-wait-online
 sudo systemctl restart systemd-networkd
 sudo networkctl reload
 sudo networkctl reconfigure "$NIC"

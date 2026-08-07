@@ -165,13 +165,11 @@ table inet filter {
         # Loopback
         iifname "lo" accept
 
-        # ICMPv4 rate-limited to prevent ping-flood
-        ip protocol icmp icmp type echo-request limit rate 10/second accept
-        ip protocol icmp icmp type { destination-unreachable, time-exceeded, echo-reply } accept
+        # ICMPv4
+        ip protocol icmp accept
 
-        # ICMPv6 rate-limited to prevent ping-flood
-        ip6 nexthdr icmpv6 icmpv6 type echo-request limit rate 10/second accept
-        ip6 nexthdr icmpv6 icmpv6 type { destination-unreachable, packet-too-big, time-exceeded, parameter-problem, echo-reply, nd-router-solicit, nd-router-advert, nd-neighbor-solicit, nd-neighbor-advert } accept
+        # ICMPv6
+        meta l4proto ipv6-icmp accept
 
         # VRRP is used by keepalived
         meta l4proto vrrp iifname "$NIC_I" accept
