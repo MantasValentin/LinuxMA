@@ -3,9 +3,14 @@ set -euo pipefail
 
 # Interface
 NIC=ens34
-LAN_IP=10.0.0.4
-LAN_SUBNET_MASK=24
-GATEWAY=10.0.0.1
+LAN_IP_V4=10.0.0.4
+LAN_PREFIX_V4=24
+GATEWAY_V4=10.0.0.1
+
+LAN_IP_V6=fd00:10::4
+LAN_PREFIX_V6=64
+GATEWAY_V6=fd00:10::1
+LAN_PREFIX_NET_V6=fd00:10
 
 # Temporary bootstrap networking before pulling this script to run it
 # sudo ip link set "$NIC" up
@@ -23,7 +28,7 @@ sudo apt update && sudo apt upgrade -y
 # openssh-server  - remote management
 # git             - pulling config from your repo
 # nftables        - firewall
-# dnsmasq         - DHCP server only
+# dnsmasq         - DHCP
 sudo apt install -y openssh-server git nftables dnsmasq
 
 # Remove the temporary networking
@@ -42,8 +47,12 @@ sudo tee /etc/systemd/network/10-lan.network > /dev/null <<EOT
 Name=$NIC
 
 [Network]
-Address=$LAN_IP/$LAN_SUBNET_MASK
-Gateway=$GATEWAY
+Address=$LAN_IP_V4/$LAN_PREFIX_V4
+Address=$LAN_IP_V6/$LAN_PREFIX_V6
+Gateway=$GATEWAY_V4
+Gateway=$GATEWAY_V6
+IPv6AcceptRA=no
+IPForward=no
 EOT
 
 # dns resolution goes to dns-rslv
@@ -51,6 +60,8 @@ sudo rm -f /etc/resolv.conf
 sudo tee /etc/resolv.conf > /dev/null <<EOT
 nameserver 10.0.0.53
 nameserver 10.0.0.54
+nameserver fd00:10::53
+nameserver fd00:10::54
 EOT
 
 # Get rid of netplan configuration files
@@ -63,22 +74,30 @@ sudo systemctl restart systemd-networkd
 sudo networkctl reload
 sudo networkctl reconfigure "$NIC"
 
-# Configure dnsmasq with DHCP only, DNS listener disabled (port=0)
+# Configure dnsmasq with DHCP, DNS listener disabled (port=0)
 sudo rm -f /etc/dnsmasq.conf
 sudo tee /etc/dnsmasq.conf > /dev/null <<EOT
 # Bind to the LAN interface
 interface=$NIC
 
+# IPv4 
 # DHCP range
 dhcp-range=10.0.0.100,10.0.0.200,255.255.255.0,24h
-
-# Default gateway handed to clients is the firewall
-dhcp-option=3,$GATEWAY
 
 # DNS server handed to clients is dns-rslv
 dhcp-option=6,10.0.0.53,10.0.0.54
 
-# Disable dnsmasq's own DNS listener - this box does DHCP only
+# Default gateway handed to clients is the firewall
+dhcp-option=3,$GATEWAY_V4
+
+# IPv6
+# DHCP range
+dhcp-range=${LAN_PREFIX_NET_V6}::100,${LAN_PREFIX_NET_V6}::200,$LAN_PREFIX_V6,24h
+
+# DNS server handed to clients is dns-rslv
+dhcp-option=option6:23,fd00:10::53,fd00:10::54
+
+# Disable dnsmasq's own DNS listener - this box does DHCP/RA only
 port=0
 
 # Logging
@@ -104,14 +123,21 @@ table inet filter {
         # Loopback
         iifname "lo" accept
 
-        # ICMP
+        # ICMPv4
         ip protocol icmp accept
 
-        # SSH only from the management range 10.0.0.20-29
-        ip saddr 10.0.0.20-10.0.0.29 tcp dport 22 accept
+        # ICMPv6
+        meta l4proto ipv6-icmp accept
 
-        # DHCP requests from the LAN
+        # SSH only from the management range 10.0.0.20-29 / fd00:10::20-29
+        ip saddr 10.0.0.20-10.0.0.29 tcp dport 22 accept
+        ip6 saddr fd00:10::20-fd00:10::29 tcp dport 22 accept
+
+        # DHCPv4 requests from the LAN
         udp dport 67 accept
+
+        # DHCPv6 requests from the LAN
+        udp dport 547 accept
     }
 
     chain forward {

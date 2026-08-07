@@ -5,16 +5,28 @@ set -euo pipefail
 NIC_E=ens33
 NIC_I=ens34
 
-WAN_IP=192.168.0.3
-WAN_VIP=192.168.0.2
-WAN_GATEWAY=192.168.0.1
-WAN_SUBNET_MASK=24
-BACKUP_FIREWALL_WAN_IP=192.168.0.4
+WAN_IP_V4=192.168.0.3
+WAN_VIP_V4=192.168.0.2
+WAN_GATEWAY_V4=192.168.0.1
+WAN_PREFIX_V4=24
+BACKUP_FIREWALL_WAN_IP_V4=192.168.0.4
 
-LAN_IP=10.0.0.2
-LAN_VIP=10.0.0.1
-LAN_SUBNET_MASK=24
-BACKUP_FIREWALL_LAN_IP=10.0.0.3
+LAN_IP_V4=10.0.0.2
+LAN_VIP_V4=10.0.0.1
+LAN_PREFIX_V4=24
+BACKUP_FIREWALL_LAN_IP_V4=10.0.0.3
+
+WAN_IP_V6=fd00:192:168::3
+WAN_VIP_V6=fd00:192:168::2
+WAN_GATEWAY_V6=fd00:192:168::1
+WAN_PREFIX_V6=64
+BACKUP_FIREWALL_WAN_IP_V6=fd00:192:168::4
+
+LAN_IP_V6=fd00:10::2
+LAN_VIP_V6=fd00:10::1
+LAN_PREFIX_V6=64
+LAN_PREFIX_NET_V6=fd00:10
+BACKUP_FIREWALL_LAN_IP_V6=fd00:10::3
 
 # Shared secret
 # identical between firewall_primary.sh and firewall_secondary.sh
@@ -31,11 +43,13 @@ sudo apt update && sudo apt upgrade -y
 # nftables        - firewall, NAT, DNAT
 # keepalived      - for configuring a virtual IP
 # conntrackd      - syncs the connection-tracking table for both firewalls
-sudo apt install -y openssh-server git nftables keepalived conntrackd
+# radvd           - ipv6 RA
+sudo apt install -y openssh-server git nftables keepalived conntrackd radvd
 
 # Enable IP forwarding
 sudo tee /etc/sysctl.d/99-firewall.conf > /dev/null <<EOT
 net.ipv4.ip_forward=1
+net.ipv6.conf.all.forwarding=1
 
 # Mitigates ip spoofing by checking if the source ip comes from the correct NIC
 # Prevents WAN connections from pretending to be comming from LAN admin servers 
@@ -45,15 +59,21 @@ net.ipv4.conf.default.rp_filter=1
 # Don't answer/accept ICMP redirects
 # Prevents externall changes to the firewalls routing table
 net.ipv4.conf.all.accept_redirects=0
+net.ipv6.conf.all.accept_redirects=0
 # Prevents the firewall from revealing the LAN topology
 net.ipv4.conf.all.send_redirects=0
 # Prevents the firewall from accepting a hostile routing path
 net.ipv4.conf.all.accept_source_route=0
+net.ipv6.conf.all.accept_source_route=0
+
+# Ignore RA, use static addresses
+net.ipv6.conf.all.accept_ra=0
 EOT
 sudo sysctl --system
 
-# Disable automatic dns resolution
+# Disable automatic dns resolution and RA
 sudo systemctl disable --now systemd-resolved
+sudo systemctl disable --now radvd
 
 sudo systemctl enable nftables --now
 sudo systemctl enable ssh --now
@@ -64,8 +84,11 @@ sudo tee /etc/systemd/network/10-wan.network > /dev/null <<EOT
 Name=$NIC_E
 
 [Network]
-Address=$WAN_IP/$WAN_SUBNET_MASK
-Gateway=$WAN_GATEWAY
+Address=$WAN_IP_V4/$WAN_PREFIX_V4
+Address=$WAN_IP_V6/$WAN_PREFIX_V6
+Gateway=$WAN_GATEWAY_V4
+Gateway=$WAN_GATEWAY_V6
+IPv6AcceptRA=no
 EOT
 
 # LAN interface
@@ -74,7 +97,9 @@ sudo tee /etc/systemd/network/20-lan.network > /dev/null <<EOT
 Name=$NIC_I
 
 [Network]
-Address=$LAN_IP/$LAN_SUBNET_MASK
+Address=$LAN_IP_V4/$LAN_PREFIX_V4
+Address=$LAN_IP_V6/$LAN_PREFIX_V6
+IPv6AcceptRA=no
 EOT
 
 # Get rid of netplan configuration files
@@ -92,6 +117,8 @@ sudo rm -f /etc/resolv.conf
 sudo tee /etc/resolv.conf > /dev/null <<EOT
 nameserver 10.0.0.53
 nameserver 10.0.0.54
+nameserver fd00:10::53
+nameserver fd00:10::54
 EOT
 
 # NAT and filtering
@@ -103,15 +130,24 @@ flush ruleset
 table ip nat {
     chain postrouting {
         type nat hook postrouting priority srcnat; policy accept;
-        # Masquerade all LAN-sourced traffic heading out to the internet
         oifname "$NIC_E" masquerade
     }
 
     chain prerouting {
         type nat hook prerouting priority dstnat; policy accept;
-        # Inbound WAN traffic on 80/443 is DNAT'd to the reverse proxy only
-        iifname "$NIC_E" tcp dport 80 dnat to 10.0.0.60
-        iifname "$NIC_E" tcp dport 443 dnat to 10.0.0.60
+        iifname "$NIC_E" ip daddr $WAN_VIP_V4 tcp dport { 80, 443 } dnat to 10.0.0.60
+    }
+}
+
+table ip6 nat {
+    chain postrouting {
+        type nat hook postrouting priority srcnat; policy accept;
+        oifname "$NIC_E" masquerade
+    }
+
+    chain prerouting {
+        type nat hook prerouting priority dstnat; policy accept;
+        iifname "$NIC_E" ip6 daddr $WAN_VIP_V6 tcp dport { 80, 443 } dnat to fd00:10::60
     }
 }
 
@@ -128,12 +164,18 @@ table inet filter {
         # Loopback
         iifname "lo" accept
 
-        # ICMP rate-limited to prevent ping-flood
+        # ICMPv4 rate-limited to prevent ping-flood
         ip protocol icmp icmp type echo-request limit rate 10/second accept
         ip protocol icmp icmp type { destination-unreachable, time-exceeded, echo-reply } accept
 
+        # ICMPv6 rate-limited to prevent ping-flood
+        ip6 nexthdr icmpv6 icmpv6 type echo-request limit rate 10/second accept
+        ip6 nexthdr icmpv6 icmpv6 type { destination-unreachable, packet-too-big, time-exceeded, parameter-problem, echo-reply, nd-router-solicit, nd-router-advert, nd-neighbor-solicit, nd-neighbor-advert } accept
+
         # VRRP is used by keepalived
-        ip protocol vrrp iifname "$NIC_I" accept
+        meta l4proto vrrp iifname "$NIC_I" accept
+        meta l4proto vrrp iifname "$NIC_E" ip saddr $BACKUP_FIREWALL_WAN_IP_V4 accept
+        meta l4proto vrrp iifname "$NIC_E" ip6 saddr $BACKUP_FIREWALL_WAN_IP_V6 accept
 
         # For conntrackd to sync both firewalls
         iifname "$NIC_I" tcp dport 3780 accept
@@ -141,6 +183,7 @@ table inet filter {
 
         # SSH only from the management range and LAN NIC
         iifname "$NIC_I" ip saddr 10.0.0.20-10.0.0.29 tcp dport 22 ct state new accept
+        iifname "$NIC_I" ip6 saddr fd00:10::20-fd00:10::29 tcp dport 22 ct state new accept
     }
 
     chain forward {
@@ -152,14 +195,22 @@ table inet filter {
         # Drop invalid packets
         ct state invalid drop
 
+        # ICMP errors should be forwarded
+        ip protocol icmp icmp type { destination-unreachable, time-exceeded } accept
+        ip6 nexthdr icmpv6 icmpv6 type { destination-unreachable, packet-too-big, time-exceeded, parameter-problem } accept
+
         iifname "$NIC_E" oifname "$NIC_I" ip daddr 10.0.0.60 tcp dport { 80, 443 } accept
+        iifname "$NIC_E" oifname "$NIC_I" ip6 daddr fd00:10::60 tcp dport { 80, 443 } accept
 
         iifname "$NIC_I" oifname "$NIC_E" tcp dport { 80, 443 } ct state new accept
 
         iifname "$NIC_I" oifname "$NIC_E" ip saddr { 10.0.0.53, 10.0.0.54 } ip daddr { 8.8.8.8, 1.1.1.1 } udp dport 53 accept
         iifname "$NIC_I" oifname "$NIC_E" ip saddr { 10.0.0.53, 10.0.0.54 } ip daddr { 8.8.8.8, 1.1.1.1 } tcp dport 53 accept
+        iifname "$NIC_I" oifname "$NIC_E" ip6 saddr { fd00:10::53, fd00:10::54 } ip6 daddr { 2001:4860:4860::8888, 2606:4700:4700::1111 } udp dport 53 accept
+        iifname "$NIC_I" oifname "$NIC_E" ip6 saddr { fd00:10::53, fd00:10::54 } ip6 daddr { 2001:4860:4860::8888, 2606:4700:4700::1111 } tcp dport 53 accept
 
         iifname "$NIC_I" oifname "$NIC_E" ip saddr { 10.0.0.5, 10.0.0.6 } udp dport 123 accept
+        iifname "$NIC_I" oifname "$NIC_E" ip6 saddr { fd00:10::5, fd00:10::6 } udp dport 123 accept
     }
 
     chain output {
@@ -180,8 +231,16 @@ global_defs {
     enable_script_security
 }
 
-vrrp_script chk_wan {
+vrrp_script chk_wan_ipv4 {
     script "/usr/bin/ping -c1 -W1 8.8.8.8"
+    interval 2
+    weight -60
+    fall 2
+    rise 2
+}
+
+vrrp_script chk_wan_ipv6 {
+    script "/usr/bin/ping -c1 -W1 2001:4860:4860::8888"
     interval 2
     weight -60
     fall 2
@@ -192,6 +251,8 @@ vrrp_sync_group VG_FIREWALL {
     group {
         VI_1
         VI_2
+        VI_3
+        VI_4
     }
 
     notify_master "/etc/keepalived/notify.sh master"
@@ -199,6 +260,7 @@ vrrp_sync_group VG_FIREWALL {
     notify_fault  "/etc/keepalived/notify.sh fault"
 }
 
+# IPv4 LAN VIP
 vrrp_instance VI_1 {
     state MASTER
     interface $NIC_I
@@ -213,7 +275,7 @@ vrrp_instance VI_1 {
     }
 
     virtual_ipaddress {
-        $LAN_VIP/$LAN_SUBNET_MASK
+        $LAN_VIP_V4/$LAN_PREFIX_V4
     }
 
     track_interface {
@@ -222,10 +284,11 @@ vrrp_instance VI_1 {
     }
 
     track_script {
-        chk_wan
+        chk_wan_ipv4
     }
 }
 
+# IPv4 WAN VIP
 vrrp_instance VI_2 {
     state MASTER
     interface $NIC_E
@@ -240,7 +303,7 @@ vrrp_instance VI_2 {
     }
 
     virtual_ipaddress {
-        $WAN_VIP/$WAN_SUBNET_MASK
+        $WAN_VIP_V4/$WAN_PREFIX_V4
     }
 
     track_interface {
@@ -249,7 +312,53 @@ vrrp_instance VI_2 {
     }
 
     track_script {
-        chk_wan
+        chk_wan_ipv4
+    }
+}
+
+# IPv6 LAN VIP
+vrrp_instance VI_3 {
+    state MASTER
+    interface $NIC_I
+    virtual_router_id 101
+    priority 150
+    advert_int 1
+    preempt_delay 3
+
+    virtual_ipaddress {
+        $LAN_VIP_V6/$LAN_PREFIX_V6
+    }
+
+    track_interface {
+        $NIC_E
+        $NIC_I
+    }
+
+    track_script {
+        chk_wan_ipv6
+    }
+}
+
+# IPv6 WAN VIP
+vrrp_instance VI_4 {
+    state MASTER
+    interface $NIC_E
+    virtual_router_id 201
+    priority 150
+    advert_int 1
+    preempt_delay 3
+
+    virtual_ipaddress {
+        $WAN_VIP_V6/$WAN_PREFIX_V6
+    }
+
+    track_interface {
+        $NIC_E
+        $NIC_I
+    }
+
+    track_script {
+        chk_wan_ipv6
     }
 }
 EOT
@@ -281,9 +390,11 @@ General {
     Filter From Userspace {
         Protocol Accept {
             UDP
+            TCP
         }
         Address Ignore {
             IPv4_address 127.0.0.1
+            IPv6_address ::1
         }
     }
 }
@@ -294,11 +405,22 @@ Sync {
         CommitTimeout 180
         PurgeTimeout 60
     }
+
     UDP Default {
-        IPv4_address $LAN_IP
         Port 3780
         Interface $NIC_I
-        IPv4_Destination_Address $BACKUP_FIREWALL_LAN_IP
+        IPv4_address $LAN_IP_V4
+        IPv4_Destination_Address $BACKUP_FIREWALL_LAN_IP_V4
+        SndSocketBuffer 1249280
+        RcvSocketBuffer 1249280
+        Checksum on
+    }
+
+    UDP {
+        Port 3780
+        Interface $NIC_I
+        IPv6_address $LAN_IP_V6
+        IPv6_Destination_Address $BACKUP_FIREWALL_LAN_IP_V6
         SndSocketBuffer 1249280
         RcvSocketBuffer 1249280
         Checksum on
@@ -315,18 +437,18 @@ case "$1" in
     master)
         $CONNTRACKD_BIN -C $CONNTRACKD_CONFIG -c
         $CONNTRACKD_BIN -C $CONNTRACKD_CONFIG -B
-        logger "keepalived: entering MASTER, committed conntrack cache"
+        systemctl start radvd
+        logger "keepalived: entering MASTER, committed conntrack cache, started radvd"
         ;;
     backup)
         $CONNTRACKD_BIN -C $CONNTRACKD_CONFIG -f
-        logger "keepalived: entering BACKUP, flushed conntrack cache"
+        systemctl stop radvd
+        logger "keepalived: entering BACKUP, flushed conntrack cache, stopped radvd"
         ;;
     fault)
         $CONNTRACKD_BIN -C $CONNTRACKD_CONFIG -f
-        logger "keepalived: entering FAULT, flushed conntrack cache"
-        ;;
-    *)
-        logger "keepalived: notify.sh called with unrecognized state: $1"
+        systemctl stop radvd
+        logger "keepalived: entering FAULT, flushed conntrack cache, stopped radvd"
         ;;
 esac
 EOT
@@ -344,10 +466,26 @@ EOT
 
 # Configure conntrackd service priority
 sudo mkdir -p /etc/systemd/system/conntrackd.service.d
-sudo tee /etc/systemd/system/conntrackd.service.d/priority.conf > /dev/null <<'EOF'
+sudo tee /etc/systemd/system/conntrackd.service.d/priority.conf > /dev/null <<EOF
 [Service]
 Nice=-10
 EOF
+
+# Setup RA for IPv6
+sudo tee /etc/radvd.conf > /dev/null <<EOT
+interface $NIC_I {
+    AdvSendAdvert on;
+    AdvManagedFlag on;
+    AdvOtherConfigFlag on;
+    MinRtrAdvInterval 5;
+    MaxRtrAdvInterval 20;
+
+    prefix $LAN_PREFIX_NET_V6::/$LAN_PREFIX_V6 {
+        AdvOnLink on;
+        AdvAutonomous off;
+    };
+};
+EOT
 
 sudo systemctl daemon-reload
 sudo systemctl enable --now conntrackd

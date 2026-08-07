@@ -3,9 +3,13 @@ set -euo pipefail
 
 # Interface
 NIC=ens34
-LAN_IP=10.0.0.7
-LAN_SUBNET_MASK=24
-GATEWAY=10.0.0.1
+LAN_IP_V4=10.0.0.7
+LAN_PREFIX_V4=24
+GATEWAY_V4=10.0.0.1
+
+LAN_IP_V6=fd00:10::7
+LAN_PREFIX_V6=64
+GATEWAY_V6=fd00:10::1
 
 # Set hostname
 sudo hostnamectl set-hostname "dns1"
@@ -34,8 +38,11 @@ sudo tee /etc/systemd/network/10-lan.network > /dev/null <<EOT
 Name=$NIC
 
 [Network]
-Address=$LAN_IP/$LAN_SUBNET_MASK
-Gateway=$GATEWAY
+Address=$LAN_IP_V4/$LAN_PREFIX_V4
+Address=$LAN_IP_V6/$LAN_PREFIX_V6
+Gateway=$GATEWAY_V4
+Gateway=$GATEWAY_V6
+IPv6AcceptRA=no
 EOT
 
 # dns resolution goes to dns-rslv
@@ -43,6 +50,8 @@ sudo rm -f /etc/resolv.conf
 sudo tee /etc/resolv.conf > /dev/null <<EOT
 nameserver 10.0.0.53
 nameserver 10.0.0.54
+nameserver fd00:10::53
+nameserver fd00:10::54
 EOT
 
 # Get rid of netplan configuration files
@@ -62,14 +71,14 @@ sudo tsig-keygen -a hmac-sha256 xfer-key | sudo tee /etc/bind/tsig-xfer.key
 sudo chown root:bind /etc/bind/tsig-xfer.key
 sudo chmod 640 /etc/bind/tsig-xfer.key
 
-# Deploy the config 
+# Deploy the config
 sudo tee /etc/bind/named.conf.options > /dev/null <<EOT
 options {
     directory "/var/cache/bind";
     recursion no;
-    allow-query { localhost; 10.0.0.0/24; };
+    allow-query { localhost; 10.0.0.0/24; fd00:10::/64; };
     listen-on { any; };
-    listen-on-v6 { none; };   // Disable IPv6 since the lab is IPv4-only
+    listen-on-v6 { any; };
     allow-transfer { none; };
     dnssec-validation auto;
     version "not disclosed";
@@ -95,15 +104,27 @@ zone "0.0.10.in-addr.arpa" {
     notify yes;
 };
 
+zone "0.0.0.0.0.0.0.0.0.1.0.0.0.0.d.f.ip6.arpa" {
+    type primary;
+    file "/etc/bind/db.fd00.10";
+    allow-update { none; };
+    allow-transfer { key xfer-key; };
+    notify yes;
+};
+
 server 10.0.0.8 {
+    keys { xfer-key; };
+};
+
+server fd00:10::8 {
     keys { xfer-key; };
 };
 EOT
 
-sudo tee /etc/bind/db.lab.local > /dev/null <<EOT
+sudo tee /etc/bind/db.lab.local > /dev/null <<'EOT'
 $TTL    3600
 @       IN      SOA     ns1.lab.local. dns-admin.lab.local. (
-                             2026072601    ; Serial YYYYMMDDnn
+                             2026080601    ; Serial YYYYMMDDnn
                                    3600    ; Refresh (1 hour)
                                     900    ; Retry (15 min)
                                  604800    ; Expire (1 week)
@@ -113,20 +134,27 @@ $TTL    3600
 @       IN      NS      ns1.lab.local.
 @       IN      NS      ns2.lab.local.
 
-; 10.0.0.1 is reserved for a virtual IP
+; 10.0.0.1 / fd00:10::1 is reserved for a virtual IP
 
 ; Firewall
 firewall1    IN      A       10.0.0.2
+firewall1    IN      AAAA    fd00:10::2
 firewall2    IN      A       10.0.0.3
+firewall2    IN      AAAA    fd00:10::3
 
 ; DHCP
 dhcp      IN      A       10.0.0.4
+dhcp      IN      AAAA    fd00:10::4
 
 ; IPA
 ipa1        IN      A       10.0.0.5
+ipa1        IN      AAAA    fd00:10::5
 ipa2        IN      A       10.0.0.6
+ipa2        IN      AAAA    fd00:10::6
 ipa-ca      IN      A       10.0.0.5
 ipa-ca      IN      A       10.0.0.6
+ipa-ca      IN      AAAA    fd00:10::5
+ipa-ca      IN      AAAA    fd00:10::6
 
 ; Kerberos/LDAP service discovery
 _kerberos-master._tcp.lab.local. IN SRV 0 100 88  ipa1.lab.local.
@@ -145,36 +173,49 @@ _kerberos.lab.local.             IN TXT "LAB.LOCAL"
 
 ; Authoritative DNS
 dns1        IN      A       10.0.0.7
+dns1        IN      AAAA    fd00:10::7
 ns1         IN      A       10.0.0.7
+ns1         IN      AAAA    fd00:10::7
 dns2        IN      A       10.0.0.8
+dns2        IN      AAAA    fd00:10::8
 ns2         IN      A       10.0.0.8
+ns2         IN      AAAA    fd00:10::8
 
 ; Management
 admin       IN      A       10.0.0.20
+admin       IN      AAAA    fd00:10::20
 
 ; Logs, analytics
 logs        IN      A       10.0.0.30
+logs        IN      AAAA    fd00:10::30
 analytics   IN      A       10.0.0.31
+analytics   IN      AAAA    fd00:10::31
 
 ; Database
 db1          IN      A       10.0.0.40
+db1          IN      AAAA    fd00:10::40
 db2          IN      A       10.0.0.41
+db2          IN      AAAA    fd00:10::41
 
 ; Recursive DNS resolver
 dns-rslv1    IN      A       10.0.0.53
+dns-rslv1    IN      AAAA    fd00:10::53
 dns-rslv2    IN      A       10.0.0.54
+dns-rslv2    IN      AAAA    fd00:10::54
 
 ; Reverse Proxy
 proxy       IN      A       10.0.0.60
+proxy       IN      AAAA    fd00:10::60
 
 ; Apps
 app1         IN      A       10.0.0.70
+app1         IN      AAAA    fd00:10::70
 EOT
 
-sudo tee /etc/bind/db.10.0.0 > /dev/null <<EOT
+sudo tee /etc/bind/db.10.0.0 > /dev/null <<'EOT'
 $TTL    3600
 @       IN      SOA     ns1.lab.local. dns-admin.lab.local. (
-                             2026072601    ; Serial YYYYMMDDnn
+                             2026080601    ; Serial YYYYMMDDnn
                                    3600    ; Refresh (1 hour)
                                     900    ; Retry (15 min)
                                  604800    ; Expire (1 week)
@@ -223,13 +264,65 @@ $TTL    3600
 70      IN      PTR     app1.lab.local.
 EOT
 
-sudo chown root:bind /etc/bind/db.lab.local /etc/bind/db.10.0.0
-sudo chmod 644 /etc/bind/db.lab.local /etc/bind/db.10.0.0
+sudo tee /etc/bind/db.fd00.10 > /dev/null <<'EOT'
+$TTL    3600
+@       IN      SOA     ns1.lab.local. dns-admin.lab.local. (
+                             2026080601    ; Serial YYYYMMDDnn
+                                   3600    ; Refresh (1 hour)
+                                    900    ; Retry (15 min)
+                                 604800    ; Expire (1 week)
+                                   3600 )  ; Negative cache TTL (1 hour)
+
+@       IN      NS      ns1.lab.local.
+@       IN      NS      ns2.lab.local.
+
+; Firewall
+2.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0     IN PTR firewall1.lab.local.
+3.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0     IN PTR firewall2.lab.local.
+
+; DHCP
+4.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0     IN PTR dhcp.lab.local.
+
+; IPA
+5.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0     IN PTR ipa1.lab.local.
+6.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0     IN PTR ipa2.lab.local.
+
+; Authoritative DNS
+7.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0     IN PTR dns1.lab.local.
+7.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0     IN PTR ns1.lab.local.
+8.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0     IN PTR dns2.lab.local.
+8.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0     IN PTR ns2.lab.local.
+
+; Management
+0.2.0.0.0.0.0.0.0.0.0.0.0.0.0.0     IN PTR admin.lab.local.
+
+; Logs, analytics
+0.3.0.0.0.0.0.0.0.0.0.0.0.0.0.0     IN PTR logs.lab.local.
+1.3.0.0.0.0.0.0.0.0.0.0.0.0.0.0     IN PTR analytics.lab.local.
+
+; Database
+0.4.0.0.0.0.0.0.0.0.0.0.0.0.0.0     IN PTR db1.lab.local.
+1.4.0.0.0.0.0.0.0.0.0.0.0.0.0.0     IN PTR db2.lab.local.
+
+; Recursive DNS resolver
+3.5.0.0.0.0.0.0.0.0.0.0.0.0.0.0     IN PTR dns-rslv1.lab.local.
+4.5.0.0.0.0.0.0.0.0.0.0.0.0.0.0     IN PTR dns-rslv2.lab.local.
+
+; Reverse Proxy
+0.6.0.0.0.0.0.0.0.0.0.0.0.0.0.0     IN PTR proxy.lab.local.
+
+; Apps
+0.7.0.0.0.0.0.0.0.0.0.0.0.0.0.0     IN PTR app1.lab.local.
+EOT
+
+sudo chown root:bind /etc/bind/db.lab.local /etc/bind/db.10.0.0 /etc/bind/db.fd00.10
+sudo chmod 644 /etc/bind/db.lab.local /etc/bind/db.10.0.0 /etc/bind/db.fd00.10
 
 # Validate syntax and zones before restarting
 sudo named-checkconf
 sudo named-checkzone lab.local /etc/bind/db.lab.local
 sudo named-checkzone 0.0.10.in-addr.arpa /etc/bind/db.10.0.0
+sudo named-checkzone 0.0.0.0.0.0.0.0.0.1.0.0.0.0.d.f.ip6.arpa /etc/bind/db.fd00.10
 
 sudo systemctl enable named
 sudo systemctl restart named
@@ -250,15 +343,21 @@ table inet filter {
         # Loopback
         iifname "lo" accept
 
-        # ICMP
+        # ICMPv4
         ip protocol icmp accept
 
-        # SSH only from the management range 10.0.0.20-29
+        # ICMPv6
+        meta l4proto ipv6-icmp accept
+
+        # SSH only from the management range 10.0.0.20-29 / fd00:10::20-29
         ip saddr 10.0.0.20-10.0.0.29 tcp dport 22 accept
+        ip6 saddr fd00:10::20-fd00:10::29 tcp dport 22 accept
 
         # DNS queries from the LAN only
         ip saddr 10.0.0.0/24 udp dport 53 accept
         ip saddr 10.0.0.0/24 tcp dport 53 accept
+        ip6 saddr fd00:10::/64 udp dport 53 accept
+        ip6 saddr fd00:10::/64 tcp dport 53 accept
     }
 
     chain forward {

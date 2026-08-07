@@ -3,15 +3,20 @@ set -euo pipefail
 
 # Interface
 NIC=ens34
-LAN_IP=10.0.0.8
-LAN_SUBNET_MASK=24
-GATEWAY=10.0.0.1
+LAN_IP_V4=10.0.0.8
+LAN_PREFIX_V4=24
+GATEWAY_V4=10.0.0.1
+
+LAN_IP_V6=fd00:10::8
+LAN_PREFIX_V6=64
+GATEWAY_V6=fd00:10::1
 
 if [ ! -f /etc/bind/tsig-xfer.key ]; then
     echo "ERROR: /etc/bind/tsig-xfer.key not found."
     echo "Copy it from dns1 first, e.g.:"
-    echo "  scp admin@10.0.0.7:/etc/bind/tsig-xfer.key ./tsig-xfer.key"
-    echo "  sudo mv tsig-xfer.key /etc/bind/tsig-xfer.key"
+    echo "  scp /etc/bind/tsig-xfer.key sysadmin@10.0.0.123:/home/sysadmin/tsig-xfer.key"
+    echo "  sudo mkdir /etc/bind/"
+    echo "  sudo mv /home/sysadmin/tsig-xfer.key /etc/bind/tsig-xfer.key"
     exit 1
 fi
 
@@ -42,8 +47,11 @@ sudo tee /etc/systemd/network/10-lan.network > /dev/null <<EOT
 Name=$NIC
 
 [Network]
-Address=$LAN_IP/$LAN_SUBNET_MASK
-Gateway=$GATEWAY
+Address=$LAN_IP_V4/$LAN_PREFIX_V4
+Address=$LAN_IP_V6/$LAN_PREFIX_V6
+Gateway=$GATEWAY_V4
+Gateway=$GATEWAY_V6
+IPv6AcceptRA=no
 EOT
 
 # dns resolution goes to dns-rslv
@@ -51,6 +59,8 @@ sudo rm -f /etc/resolv.conf
 sudo tee /etc/resolv.conf > /dev/null <<EOT
 nameserver 10.0.0.53
 nameserver 10.0.0.54
+nameserver fd00:10::53
+nameserver fd00:10::54
 EOT
 
 # Get rid of netplan configuration files
@@ -68,14 +78,14 @@ sudo networkctl reconfigure "$NIC"
 sudo chown root:bind /etc/bind/tsig-xfer.key
 sudo chmod 640 /etc/bind/tsig-xfer.key
 
-# Deploy the config 
+# Deploy the config
 sudo tee /etc/bind/named.conf.options > /dev/null <<EOT
 options {
     directory "/var/cache/bind";
     recursion no;
-    allow-query { localhost; 10.0.0.0/24; };
+    allow-query { localhost; 10.0.0.0/24; fd00:10::/64; };
     listen-on { any; };
-    listen-on-v6 { none; };   // Disable IPv6 since the lab is IPv4-only
+    listen-on-v6 { any; };
     allow-transfer { none; };
     dnssec-validation auto;
     version "not disclosed";
@@ -87,17 +97,27 @@ include "/etc/bind/tsig-xfer.key";
 
 zone "lab.local" {
     type secondary;
-    primaries { 10.0.0.7 key xfer-key; };
+    primaries { 10.0.0.7 key xfer-key; fd00:10::7 key xfer-key; };
     file "/var/cache/bind/db.lab.local";
 };
 
 zone "0.0.10.in-addr.arpa" {
     type secondary;
-    primaries { 10.0.0.7 key xfer-key; };
+    primaries { 10.0.0.7 key xfer-key; fd00:10::7 key xfer-key; };
     file "/var/cache/bind/db.10.0.0";
 };
 
+zone "0.0.0.0.0.0.0.0.0.1.0.0.0.0.d.f.ip6.arpa" {
+    type secondary;
+    primaries { 10.0.0.7 key xfer-key; fd00:10::7 key xfer-key; };
+    file "/var/cache/bind/db.fd00.10.0.0";
+};
+
 server 10.0.0.7 {
+    keys { xfer-key; };
+};
+
+server fd00:10::7 {
     keys { xfer-key; };
 };
 EOT
@@ -124,15 +144,21 @@ table inet filter {
         # Loopback
         iifname "lo" accept
 
-        # ICMP
+        # ICMPv4
         ip protocol icmp accept
 
-        # SSH only from the management range 10.0.0.20-29
+        # ICMPv6
+        meta l4proto ipv6-icmp accept
+
+        # SSH only from the management range 10.0.0.20-29 / fd00:10::20-29
         ip saddr 10.0.0.20-10.0.0.29 tcp dport 22 accept
+        ip6 saddr fd00:10::20-fd00:10::29 tcp dport 22 accept
 
         # DNS queries from the LAN only
         ip saddr 10.0.0.0/24 udp dport 53 accept
         ip saddr 10.0.0.0/24 tcp dport 53 accept
+        ip6 saddr fd00:10::/64 udp dport 53 accept
+        ip6 saddr fd00:10::/64 tcp dport 53 accept
     }
 
     chain forward {
