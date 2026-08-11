@@ -162,6 +162,10 @@ table inet filter {
         # NTP
         ip saddr 10.0.0.0/24 udp dport 123 accept
         ip6 saddr fd00:10::/64 udp dport 123 accept
+
+        # Connection between IPA servers
+        ip saddr 10.0.0.0/24 tcp dport 8888 accept
+        ip6 saddr fd00:10::/64 tcp dport 8888 accept
     }
 
     chain forward {
