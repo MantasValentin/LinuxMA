@@ -92,13 +92,13 @@ options {
 };
 EOT
 
-sudo tee /etc/bind/named.conf.local > /dev/null <<EOT
+sudo tee /etc/bind/named.conf.internal > /dev/null <<EOT
 include "/etc/bind/tsig-xfer.key";
 
-zone "lab.local" {
+zone "lab.internal" {
     type secondary;
     primaries { 10.0.0.7 key xfer-key; fd00:10::7 key xfer-key; };
-    file "/var/cache/bind/db.lab.local";
+    file "/var/cache/bind/db.lab.internal";
 };
 
 zone "0.0.10.in-addr.arpa" {

@@ -13,7 +13,7 @@ IPA_ADMIN_PASSWORD=$1
 
 # Derives the FQDN from this host's existing short hostname (dns1, dhcp, firewall, etc.)
 HOSTNAME_SHORT=$(hostname -s)
-FQDN="${HOSTNAME_SHORT}.lab.local"
+FQDN="${HOSTNAME_SHORT}.lab.internal"
 
 sudo apt update
 sudo apt install -y freeipa-client chrony
@@ -37,10 +37,10 @@ sudo systemctl restart chrony
 getent hosts "$FQDN" || { echo "DNS lookup failed for $FQDN"; exit 1; }
 
 sudo ipa-client-install \
-    --domain=lab.local \
-    --realm=LAB.LOCAL \
-    --server=ipa1.lab.local \
-    --server=ipa2.lab.local \
+    --domain=lab.internal \
+    --realm=LAB.INTERNAL \
+    --server=ipa1.lab.internal \
+    --server=ipa2.lab.internal \
     --hostname="$FQDN" \
     --principal=admin \
     --password="$IPA_ADMIN_PASSWORD" \

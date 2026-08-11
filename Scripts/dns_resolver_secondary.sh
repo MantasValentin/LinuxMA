@@ -92,9 +92,9 @@ options {
 };
 EOT
 
-# lab.local gets forwarded specifically to the authoritative pair
-sudo tee /etc/bind/named.conf.local > /dev/null <<EOT
-zone "lab.local" {
+# lab.internal gets forwarded specifically to the authoritative pair
+sudo tee /etc/bind/named.conf.internal > /dev/null <<EOT
+zone "lab.internal" {
     type forward;
     forward only;
     forwarders { 10.0.0.7; 10.0.0.8; fd00:10::7; fd00:10::8; };

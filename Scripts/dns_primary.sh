@@ -85,12 +85,12 @@ options {
 };
 EOT
 
-sudo tee /etc/bind/named.conf.local > /dev/null <<EOT
+sudo tee /etc/bind/named.conf.internal > /dev/null <<EOT
 include "/etc/bind/tsig-xfer.key";
 
-zone "lab.local" {
+zone "lab.internal" {
     type primary;
-    file "/etc/bind/db.lab.local";
+    file "/etc/bind/db.lab.internal";
     allow-update { none; };
     allow-transfer { key xfer-key; };
     notify yes;
@@ -121,9 +121,9 @@ server fd00:10::8 {
 };
 EOT
 
-sudo tee /etc/bind/db.lab.local > /dev/null <<'EOT'
+sudo tee /etc/bind/db.lab.internal > /dev/null <<'EOT'
 $TTL    3600
-@       IN      SOA     ns1.lab.local. dns-admin.lab.local. (
+@       IN      SOA     ns1.lab.internal. dns-admin.lab.internal. (
                              2026080601    ; Serial YYYYMMDDnn
                                    3600    ; Refresh (1 hour)
                                     900    ; Retry (15 min)
@@ -131,8 +131,8 @@ $TTL    3600
                                    3600 )  ; Negative cache TTL (1 hour)
 
 ; Server records
-@       IN      NS      ns1.lab.local.
-@       IN      NS      ns2.lab.local.
+@       IN      NS      ns1.lab.internal.
+@       IN      NS      ns2.lab.internal.
 
 ; 10.0.0.1 / fd00:10::1 is reserved for a virtual IP
 
@@ -157,19 +157,19 @@ ipa-ca      IN      AAAA    fd00:10::5
 ipa-ca      IN      AAAA    fd00:10::6
 
 ; Kerberos/LDAP service discovery
-_kerberos-master._tcp.lab.local. IN SRV 0 100 88  ipa1.lab.local.
-_kerberos-master._udp.lab.local. IN SRV 0 100 88  ipa1.lab.local.
-_kerberos._tcp.lab.local.        IN SRV 0 100 88  ipa1.lab.local.
-_kerberos._tcp.lab.local.        IN SRV 0 100 88  ipa2.lab.local.
-_kerberos._udp.lab.local.        IN SRV 0 100 88  ipa1.lab.local.
-_kerberos._udp.lab.local.        IN SRV 0 100 88  ipa2.lab.local.
-_kpasswd._tcp.lab.local.         IN SRV 0 100 464 ipa1.lab.local.
-_kpasswd._tcp.lab.local.         IN SRV 0 100 464 ipa2.lab.local.
-_kpasswd._udp.lab.local.         IN SRV 0 100 464 ipa1.lab.local.
-_kpasswd._udp.lab.local.         IN SRV 0 100 464 ipa2.lab.local.
-_ldap._tcp.lab.local.            IN SRV 0 100 389 ipa1.lab.local.
-_ldap._tcp.lab.local.            IN SRV 0 100 389 ipa2.lab.local.
-_kerberos.lab.local.             IN TXT "LAB.LOCAL"
+_kerberos-master._tcp.lab.internal. IN SRV 0 100 88  ipa1.lab.internal.
+_kerberos-master._udp.lab.internal. IN SRV 0 100 88  ipa1.lab.internal.
+_kerberos._tcp.lab.internal.        IN SRV 0 100 88  ipa1.lab.internal.
+_kerberos._tcp.lab.internal.        IN SRV 0 100 88  ipa2.lab.internal.
+_kerberos._udp.lab.internal.        IN SRV 0 100 88  ipa1.lab.internal.
+_kerberos._udp.lab.internal.        IN SRV 0 100 88  ipa2.lab.internal.
+_kpasswd._tcp.lab.internal.         IN SRV 0 100 464 ipa1.lab.internal.
+_kpasswd._tcp.lab.internal.         IN SRV 0 100 464 ipa2.lab.internal.
+_kpasswd._udp.lab.internal.         IN SRV 0 100 464 ipa1.lab.internal.
+_kpasswd._udp.lab.internal.         IN SRV 0 100 464 ipa2.lab.internal.
+_ldap._tcp.lab.internal.            IN SRV 0 100 389 ipa1.lab.internal.
+_ldap._tcp.lab.internal.            IN SRV 0 100 389 ipa2.lab.internal.
+_kerberos.lab.internal.             IN TXT "LAB.INTERNAL"
 
 ; Authoritative DNS
 dns1        IN      A       10.0.0.7
@@ -214,7 +214,7 @@ EOT
 
 sudo tee /etc/bind/db.10.0.0 > /dev/null <<'EOT'
 $TTL    3600
-@       IN      SOA     ns1.lab.local. dns-admin.lab.local. (
+@       IN      SOA     ns1.lab.internal. dns-admin.lab.internal. (
                              2026080601    ; Serial YYYYMMDDnn
                                    3600    ; Refresh (1 hour)
                                     900    ; Retry (15 min)
@@ -222,105 +222,105 @@ $TTL    3600
                                    3600 )  ; Negative cache TTL (1 hour)
 
 ; Server records
-@       IN      NS      ns1.lab.local.
-@       IN      NS      ns2.lab.local.
+@       IN      NS      ns1.lab.internal.
+@       IN      NS      ns2.lab.internal.
 
 ; Firewall
-2       IN      PTR     firewall1.lab.local.
-3       IN      PTR     firewall2.lab.local.
+2       IN      PTR     firewall1.lab.internal.
+3       IN      PTR     firewall2.lab.internal.
 
 ; DHCP
-4       IN      PTR     dhcp.lab.local.
+4       IN      PTR     dhcp.lab.internal.
 
 ; IPA
-5       IN      PTR     ipa1.lab.local.
-6       IN      PTR     ipa2.lab.local.
+5       IN      PTR     ipa1.lab.internal.
+6       IN      PTR     ipa2.lab.internal.
 
 ; Authoritative DNS
-7      IN      PTR     dns1.lab.local.
-7      IN      PTR     ns1.lab.local.
-8      IN      PTR     dns2.lab.local.
-8      IN      PTR     ns2.lab.local.
+7      IN      PTR     dns1.lab.internal.
+7      IN      PTR     ns1.lab.internal.
+8      IN      PTR     dns2.lab.internal.
+8      IN      PTR     ns2.lab.internal.
 
 ; Management
-20      IN      PTR     admin.lab.local.
+20      IN      PTR     admin.lab.internal.
 
 ; Logs, analytics
-30      IN      PTR     logs.lab.local.
-31      IN      PTR     analytics.lab.local.
+30      IN      PTR     logs.lab.internal.
+31      IN      PTR     analytics.lab.internal.
 
 ; Database
-40      IN      PTR     db1.lab.local.
-41      IN      PTR     db2.lab.local.
+40      IN      PTR     db1.lab.internal.
+41      IN      PTR     db2.lab.internal.
 
 ; Recursive DNS resolver
-53      IN      PTR     dns-rslv1.lab.local.
-54      IN      PTR     dns-rslv2.lab.local.
+53      IN      PTR     dns-rslv1.lab.internal.
+54      IN      PTR     dns-rslv2.lab.internal.
 
 ; Reverse Proxy
-60      IN      PTR     proxy.lab.local.
+60      IN      PTR     proxy.lab.internal.
 
 ; Apps
-70      IN      PTR     app1.lab.local.
+70      IN      PTR     app1.lab.internal.
 EOT
 
 sudo tee /etc/bind/db.fd00.10 > /dev/null <<'EOT'
 $TTL    3600
-@       IN      SOA     ns1.lab.local. dns-admin.lab.local. (
+@       IN      SOA     ns1.lab.internal. dns-admin.lab.internal. (
                              2026080601    ; Serial YYYYMMDDnn
                                    3600    ; Refresh (1 hour)
                                     900    ; Retry (15 min)
                                  604800    ; Expire (1 week)
                                    3600 )  ; Negative cache TTL (1 hour)
 
-@       IN      NS      ns1.lab.local.
-@       IN      NS      ns2.lab.local.
+@       IN      NS      ns1.lab.internal.
+@       IN      NS      ns2.lab.internal.
 
 ; Firewall
-2.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0     IN PTR firewall1.lab.local.
-3.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0     IN PTR firewall2.lab.local.
+2.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0     IN PTR firewall1.lab.internal.
+3.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0     IN PTR firewall2.lab.internal.
 
 ; DHCP
-4.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0     IN PTR dhcp.lab.local.
+4.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0     IN PTR dhcp.lab.internal.
 
 ; IPA
-5.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0     IN PTR ipa1.lab.local.
-6.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0     IN PTR ipa2.lab.local.
+5.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0     IN PTR ipa1.lab.internal.
+6.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0     IN PTR ipa2.lab.internal.
 
 ; Authoritative DNS
-7.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0     IN PTR dns1.lab.local.
-7.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0     IN PTR ns1.lab.local.
-8.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0     IN PTR dns2.lab.local.
-8.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0     IN PTR ns2.lab.local.
+7.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0     IN PTR dns1.lab.internal.
+7.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0     IN PTR ns1.lab.internal.
+8.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0     IN PTR dns2.lab.internal.
+8.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0     IN PTR ns2.lab.internal.
 
 ; Management
-0.2.0.0.0.0.0.0.0.0.0.0.0.0.0.0     IN PTR admin.lab.local.
+0.2.0.0.0.0.0.0.0.0.0.0.0.0.0.0     IN PTR admin.lab.internal.
 
 ; Logs, analytics
-0.3.0.0.0.0.0.0.0.0.0.0.0.0.0.0     IN PTR logs.lab.local.
-1.3.0.0.0.0.0.0.0.0.0.0.0.0.0.0     IN PTR analytics.lab.local.
+0.3.0.0.0.0.0.0.0.0.0.0.0.0.0.0     IN PTR logs.lab.internal.
+1.3.0.0.0.0.0.0.0.0.0.0.0.0.0.0     IN PTR analytics.lab.internal.
 
 ; Database
-0.4.0.0.0.0.0.0.0.0.0.0.0.0.0.0     IN PTR db1.lab.local.
-1.4.0.0.0.0.0.0.0.0.0.0.0.0.0.0     IN PTR db2.lab.local.
+0.4.0.0.0.0.0.0.0.0.0.0.0.0.0.0     IN PTR db1.lab.internal.
+1.4.0.0.0.0.0.0.0.0.0.0.0.0.0.0     IN PTR db2.lab.internal.
 
 ; Recursive DNS resolver
-3.5.0.0.0.0.0.0.0.0.0.0.0.0.0.0     IN PTR dns-rslv1.lab.local.
-4.5.0.0.0.0.0.0.0.0.0.0.0.0.0.0     IN PTR dns-rslv2.lab.local.
+3.5.0.0.0.0.0.0.0.0.0.0.0.0.0.0     IN PTR dns-rslv1.lab.internal.
+4.5.0.0.0.0.0.0.0.0.0.0.0.0.0.0     IN PTR dns-rslv2.lab.internal.
 
 ; Reverse Proxy
-0.6.0.0.0.0.0.0.0.0.0.0.0.0.0.0     IN PTR proxy.lab.local.
+0.6.0.0.0.0.0.0.0.0.0.0.0.0.0.0     IN PTR proxy.lab.internal.
 
 ; Apps
-0.7.0.0.0.0.0.0.0.0.0.0.0.0.0.0     IN PTR app1.lab.local.
+0.7.0.0.0.0.0.0.0.0.0.0.0.0.0.0     IN PTR app1.lab.internal.
 EOT
 
-sudo chown root:bind /etc/bind/db.lab.local /etc/bind/db.10.0.0 /etc/bind/db.fd00.10
-sudo chmod 644 /etc/bind/db.lab.local /etc/bind/db.10.0.0 /etc/bind/db.fd00.10
+sudo chown root:bind /etc/bind/db.lab.internal /etc/bind/db.10.0.0 /etc/bind/db.fd00.10
+sudo chmod 644 /etc/bind/db.lab.internal /etc/bind/db.10.0.0 /etc/bind/db.fd00.10
 
 # Validate syntax and zones before restarting
 sudo named-checkconf
-sudo named-checkzone lab.local /etc/bind/db.lab.local
+sudo named-checkzone lab.internal /etc/bind/db.lab.internal
 sudo named-checkzone 0.0.10.in-addr.arpa /etc/bind/db.10.0.0
 sudo named-checkzone 0.0.0.0.0.0.0.0.0.1.0.0.0.0.d.f.ip6.arpa /etc/bind/db.fd00.10
 

@@ -23,7 +23,7 @@ LAN_PREFIX_V6=64
 GATEWAY_V6=fd00:10:0:0::1
 
 # FreeIPA must have a real FQDN hostname
-sudo hostnamectl set-hostname "ipa1.lab.local"
+sudo hostnamectl set-hostname "ipa1.lab.internal"
 
 # Update and upgrade
 sudo dnf upgrade -y
@@ -44,8 +44,6 @@ sudo dnf install -y ipa-server chrony nftables openssh-server git systemd-networ
 # role netplan removal plays on the Ubuntu box.
 sudo systemctl disable --now NetworkManager
 sudo systemctl mask NetworkManager
-sudo systemctl disable --now systemd-resolved
-sudo systemctl mask systemd-resolved
 sudo systemctl enable systemd-networkd --now
 sudo systemctl enable nftables --now
 
@@ -113,9 +111,9 @@ sudo systemctl restart chronyd
 # IPA server install (ipa-server-install itself is identical across distros -
 # only the package name that ships the binary differs
 sudo ipa-server-install \
-    --realm=LAB.LOCAL \
-    --domain=lab.local \
-    --hostname=ipa1.lab.local \
+    --realm=LAB.INTERNAL \
+    --domain=lab.internal \
+    --hostname=ipa1.lab.internal \
     --ip-address="$LAN_IP_V4" \
     --ip-address="$LAN_IP_V6" \
     --ds-password="$IPA_DM_PASSWORD" \
