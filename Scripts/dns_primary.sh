@@ -85,7 +85,7 @@ options {
 };
 EOT
 
-sudo tee /etc/bind/named.conf.internal > /dev/null <<EOT
+sudo tee /etc/bind/named.conf.local > /dev/null <<EOT
 include "/etc/bind/tsig-xfer.key";
 
 zone "lab.internal" {

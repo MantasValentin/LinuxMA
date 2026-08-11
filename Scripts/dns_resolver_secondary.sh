@@ -93,7 +93,7 @@ options {
 EOT
 
 # lab.internal gets forwarded specifically to the authoritative pair
-sudo tee /etc/bind/named.conf.internal > /dev/null <<EOT
+sudo tee /etc/bind/named.conf.local > /dev/null <<EOT
 zone "lab.internal" {
     type forward;
     forward only;
