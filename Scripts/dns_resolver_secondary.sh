@@ -88,6 +88,11 @@ options {
     };
     forward first;
     dnssec-validation auto;
+    validate-except {
+        lab.internal;
+        0.0.10.in-addr.arpa;
+        0.0.0.0.0.0.0.0.0.1.0.0.0.0.d.f.ip6.arpa;
+    };
     version "not disclosed";
 };
 EOT
