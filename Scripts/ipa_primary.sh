@@ -44,6 +44,8 @@ sudo dnf install -y ipa-server chrony nftables openssh-server git systemd-networ
 # role netplan removal plays on the Ubuntu box.
 sudo systemctl disable --now NetworkManager
 sudo systemctl mask NetworkManager
+sudo systemctl disable --now systemd-resolved
+sudo systemctl mask systemd-resolved
 sudo systemctl enable systemd-networkd --now
 sudo systemctl enable nftables --now
 
