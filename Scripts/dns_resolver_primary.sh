@@ -11,6 +11,8 @@ LAN_IP_V6=fd00:10::53
 LAN_PREFIX_V6=64
 GATEWAY_V6=fd00:10::1
 
+AUTH_SERVER=10.0.0.7
+
 # Temporary bootstrap networking before pulling this script to run it
 # sudo ip link set "$NIC" up
 # sudo ip addr add 10.0.0.250/24 dev "$NIC"
@@ -71,6 +73,28 @@ nameserver 127.0.0.1
 nameserver ::1
 EOT
 
+# DNSSEC trust anchor
+
+fetch_trust_anchor() {
+    local zone=$1
+    dig +noall +answer DNSKEY "$zone" @"$AUTH_SERVER" \
+        | awk '$5 == 257 { printf "    %s static-key %s %s %s \"%s\";\n", $1, $5, $6, $7, $8 }'
+}
+
+TRUST_ANCHORS=$(
+    fetch_trust_anchor "lab.internal"
+    fetch_trust_anchor "0.0.10.in-addr.arpa"
+    fetch_trust_anchor "0.0.0.0.0.0.0.0.0.1.0.0.0.0.d.f.ip6.arpa"
+)
+
+if [ -z "$TRUST_ANCHORS" ]; then
+    echo "ERROR: could not fetch DNSKEY records from $AUTH_SERVER (dns1)."
+    echo "Make sure dns1 has run dns_primary.sh and the zones are signed:"
+    echo "  dig DNSKEY lab.internal @$AUTH_SERVER"
+    echo "should return a record with flags 257 before running this script."
+    exit 1
+fi
+
 # Recurse and cache for the LAN, forward everything else to public resolvers
 sudo tee /etc/bind/named.conf.options > /dev/null <<EOT
 options {
@@ -88,12 +112,11 @@ options {
     };
     forward first;
     dnssec-validation auto;
-    validate-except {
-        lab.internal;
-        0.0.10.in-addr.arpa;
-        0.0.0.0.0.0.0.0.0.1.0.0.0.0.d.f.ip6.arpa;
-    };
     version "not disclosed";
+};
+
+trust-anchors {
+$TRUST_ANCHORS
 };
 EOT
 
