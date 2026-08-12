@@ -205,10 +205,8 @@ table inet filter {
 
         iifname "$NIC_I" oifname "$NIC_E" tcp dport { 80, 443 } ct state new accept
 
-        iifname "$NIC_I" oifname "$NIC_E" ip saddr { 10.0.0.53, 10.0.0.54 } ip daddr { 8.8.8.8, 1.1.1.1 } udp dport 53 accept
-        iifname "$NIC_I" oifname "$NIC_E" ip saddr { 10.0.0.53, 10.0.0.54 } ip daddr { 8.8.8.8, 1.1.1.1 } tcp dport 53 accept
-        iifname "$NIC_I" oifname "$NIC_E" ip6 saddr { fd00:10::53, fd00:10::54 } ip6 daddr { 2001:4860:4860::8888, 2606:4700:4700::1111 } udp dport 53 accept
-        iifname "$NIC_I" oifname "$NIC_E" ip6 saddr { fd00:10::53, fd00:10::54 } ip6 daddr { 2001:4860:4860::8888, 2606:4700:4700::1111 } tcp dport 53 accept
+        iifname "$NIC_I" oifname "$NIC_E" udp dport 53 accept
+        iifname "$NIC_I" oifname "$NIC_E" tcp dport 53 accept
 
         iifname "$NIC_I" oifname "$NIC_E" ip saddr { 10.0.0.5, 10.0.0.6 } udp dport 123 accept
         iifname "$NIC_I" oifname "$NIC_E" ip6 saddr { fd00:10::5, fd00:10::6 } udp dport 123 accept

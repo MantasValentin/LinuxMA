@@ -11,6 +11,12 @@ LAN_IP_V6=fd00:10::7
 LAN_PREFIX_V6=64
 GATEWAY_V6=fd00:10::1
 
+# Temporary bootstrap networking before pulling this script to run it
+# sudo ip link set "$NIC" up
+# sudo ip addr add 10.0.0.250/24 dev "$NIC"
+# sudo ip route add default via 10.0.0.1
+# echo "nameserver 1.1.1.1" | sudo tee /etc/resolv.conf > /dev/null
+
 # Set hostname
 sudo hostnamectl set-hostname "dns1"
 
@@ -28,6 +34,10 @@ sudo apt install -y bind9 bind9utils bind9-doc dnsutils nftables openssh-server 
 
 sudo systemctl enable nftables --now
 sudo systemctl enable ssh --now
+
+# Remove the temporary networking
+sudo ip addr flush dev "$NIC"
+sudo ip route flush dev "$NIC"
 
 # Disable automatic dns resolution
 sudo systemctl disable --now systemd-resolved
@@ -71,15 +81,10 @@ sudo tsig-keygen -a hmac-sha256 xfer-key | sudo tee /etc/bind/tsig-xfer.key
 sudo chown root:bind /etc/bind/tsig-xfer.key
 sudo chmod 640 /etc/bind/tsig-xfer.key
 
-# Directory for DNSSEC keys
-sudo mkdir -p /var/cache/bind/keys
-sudo chown bind:bind /var/cache/bind/keys
-
 # Deploy the config
 sudo tee /etc/bind/named.conf.options > /dev/null <<EOT
 options {
     directory "/var/cache/bind";
-    key-directory "/var/cache/bind/keys";
     recursion no;
     allow-query { localhost; 10.0.0.0/24; fd00:10::/64; };
     listen-on { any; };
@@ -99,8 +104,6 @@ zone "lab.internal" {
     allow-update { none; };
     allow-transfer { key xfer-key; };
     notify yes;
-    dnssec-policy default;
-    inline-signing yes;
 };
 
 zone "0.0.10.in-addr.arpa" {
@@ -109,8 +112,6 @@ zone "0.0.10.in-addr.arpa" {
     allow-update { none; };
     allow-transfer { key xfer-key; };
     notify yes;
-    dnssec-policy default;
-    inline-signing yes;
 };
 
 zone "0.0.0.0.0.0.0.0.0.1.0.0.0.0.d.f.ip6.arpa" {
@@ -119,8 +120,6 @@ zone "0.0.0.0.0.0.0.0.0.1.0.0.0.0.d.f.ip6.arpa" {
     allow-update { none; };
     allow-transfer { key xfer-key; };
     notify yes;
-    dnssec-policy default;
-    inline-signing yes;
 };
 
 server 10.0.0.8 {
@@ -337,12 +336,6 @@ sudo named-checkzone 0.0.0.0.0.0.0.0.0.1.0.0.0.0.d.f.ip6.arpa /etc/bind/db.fd00.
 
 sudo systemctl enable named
 sudo systemctl restart named
-
-# Give named a moment to generate keys and sign the zones on first start
-sleep 3
-sudo rndc dnssec -status lab.internal
-sudo rndc dnssec -status 0.0.10.in-addr.arpa
-sudo rndc dnssec -status 0.0.0.0.0.0.0.0.0.1.0.0.0.0.d.f.ip6.arpa
 
 # Firewall Config
 sudo tee /etc/nftables.conf > /dev/null <<EOT
