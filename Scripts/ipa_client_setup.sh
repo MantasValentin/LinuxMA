@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
 set -euo pipefail
+export DEBIAN_FRONTEND=noninteractive
 
 # Check if the correct number of arguments is provided
 if [ "$#" -ne 1 ]; then
@@ -15,8 +16,8 @@ IPA_ADMIN_PASSWORD=$1
 HOSTNAME_SHORT=$(hostname -s)
 FQDN="${HOSTNAME_SHORT}.lab.internal"
 
-sudo apt update
-sudo apt install -y freeipa-client chrony
+sudo apt-get update
+sudo apt-get install -y freeipa-client chrony
 
 sudo tee /etc/chrony/chrony.conf > /dev/null <<EOT
 # Upstream time sources
