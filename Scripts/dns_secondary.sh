@@ -11,6 +11,13 @@ LAN_IP_V6=fd00:10::8
 LAN_PREFIX_V6=64
 GATEWAY_V6=fd00:10::1
 
+# Temporary bootstrap networking before pulling this script to run it
+# sudo ip link set "$NIC" up
+# sudo ip addr add 10.0.0.250/24 dev "$NIC"
+# sudo ip route add default via 10.0.0.1
+# sudo systemctl disable --now systemd-resolved
+# echo "nameserver 1.1.1.1" | sudo tee /etc/resolv.conf > /dev/null
+
 if [ ! -f /etc/bind/tsig-xfer.key ]; then
     echo "ERROR: /etc/bind/tsig-xfer.key not found."
     echo "Copy it from dns1 first, e.g.:"
@@ -34,6 +41,10 @@ sudo apt update && sudo apt upgrade -y
 # openssh-server  - remote management
 # git             - pulling config from your repo
 sudo apt install -y bind9 bind9utils bind9-doc dnsutils nftables openssh-server git
+
+# Remove the temporary networking
+sudo ip addr flush dev "$NIC"
+sudo ip route flush dev "$NIC"
 
 sudo systemctl enable nftables --now
 sudo systemctl enable ssh --now

@@ -20,17 +20,18 @@ sudo apt install -y freeipa-client chrony
 
 sudo tee /etc/chrony/chrony.conf > /dev/null <<EOT
 # Upstream time sources
-server 10.0.0.5 iburst prefer
-server 10.0.0.6 iburst
+server ipa1.lab.internal iburst prefer
+server ipa2.lab.internal iburst
 
 # Step the clock on large offsets instead of just slewing, but only at startup
 makestep 1.0 3
 
 # Record drift for faster resync after reboot
 driftfile /var/lib/chrony/drift
+
+rtcsync
 EOT
 
-# chrony's service unit is "chronyd" on RHEL/Rocky, not "chrony"
 sudo systemctl enable chrony --now
 sudo systemctl restart chrony
 

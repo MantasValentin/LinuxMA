@@ -85,8 +85,12 @@ sudo networkctl reconfigure "$NIC"
 # Note: Rocky's chrony config lives at /etc/chrony.conf, not /etc/chrony/chrony.conf
 sudo tee /etc/chrony.conf > /dev/null <<EOT
 # Prefer the primary IPA server, fall back to public pool
-server 10.0.0.5 iburst prefer
+server ipa1.lab.internal iburst prefer
 pool 2.rocky.pool.ntp.org iburst
+pool 3.rocky.pool.ntp.org iburst
+
+# Peer IPA server
+peer ipa1.lab.internal
 
 # Serve time to the LAN
 allow 10.0.0.0/24
@@ -95,6 +99,7 @@ allow fd00:10::/64
 local stratum 10
 makestep 1.0 3
 driftfile /var/lib/chrony/drift
+rtcsync
 EOT
 
 # chrony's service unit is "chronyd" on RHEL/Rocky, not "chrony"

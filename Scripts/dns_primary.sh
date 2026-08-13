@@ -15,6 +15,7 @@ GATEWAY_V6=fd00:10::1
 # sudo ip link set "$NIC" up
 # sudo ip addr add 10.0.0.250/24 dev "$NIC"
 # sudo ip route add default via 10.0.0.1
+# sudo systemctl disable --now systemd-resolved
 # echo "nameserver 1.1.1.1" | sudo tee /etc/resolv.conf > /dev/null
 
 # Set hostname
@@ -32,12 +33,12 @@ sudo apt update && sudo apt upgrade -y
 # git             - pulling config from your repo
 sudo apt install -y bind9 bind9utils bind9-doc dnsutils nftables openssh-server git
 
-sudo systemctl enable nftables --now
-sudo systemctl enable ssh --now
-
 # Remove the temporary networking
 sudo ip addr flush dev "$NIC"
 sudo ip route flush dev "$NIC"
+
+sudo systemctl enable nftables --now
+sudo systemctl enable ssh --now
 
 # Disable automatic dns resolution
 sudo systemctl disable --now systemd-resolved

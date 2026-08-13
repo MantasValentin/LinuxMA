@@ -88,13 +88,13 @@ sudo networkctl reconfigure "$NIC"
 sudo tee /etc/chrony.conf > /dev/null <<EOT
 # Upstream time sources
 pool 2.rocky.pool.ntp.org iburst
+pool 3.rocky.pool.ntp.org iburst
 
 # Serve time to the LAN
 allow 10.0.0.0/24
 allow fd00:10::/64
 
 # Act as a fallback stratum source if upstream is unreachable
-# (keeps LAN clients roughly in sync with each other even if internet drops)
 local stratum 10
 
 # Step the clock on large offsets instead of just slewing, but only at startup
@@ -102,6 +102,9 @@ makestep 1.0 3
 
 # Record drift for faster resync after reboot
 driftfile /var/lib/chrony/drift
+
+# Sync for better accuracy across reboots
+rtcsync
 EOT
 
 # chrony's service unit is "chronyd" on RHEL/Rocky, not "chrony"
@@ -120,6 +123,8 @@ sudo ipa-server-install \
     --admin-password="$IPA_ADMIN_PASSWORD" \
     --no-host-dns \
     --no-ntp \
+    --idstart=2000 \
+    --idmax=2999 \
     --unattended
 
 sudo tee /etc/nftables.conf > /dev/null <<EOT
