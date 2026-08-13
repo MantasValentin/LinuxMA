@@ -28,7 +28,7 @@ if [ ! -f /etc/bind/tsig-xfer.key ]; then
 fi
 
 # Set hostname
-sudo hostnamectl set-hostname "dns2"
+sudo hostnamectl set-hostname "dns2.lab.internal"
 
 # Update and upgrade
 sudo apt update && sudo apt upgrade -y

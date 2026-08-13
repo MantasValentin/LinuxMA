@@ -19,7 +19,7 @@ GATEWAY_V6=fd00:10::1
 # echo "nameserver 1.1.1.1" | sudo tee /etc/resolv.conf > /dev/null
 
 # Set hostname
-sudo hostnamectl set-hostname "dns-rslv1"
+sudo hostnamectl set-hostname "dns-rslv1.lab.internal"
 
 # Update and upgrade
 sudo apt update && sudo apt upgrade -y

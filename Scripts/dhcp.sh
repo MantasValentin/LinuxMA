@@ -19,7 +19,7 @@ LAN_PREFIX_NET_V6=fd00:10
 # echo "nameserver 1.1.1.1" | sudo tee /etc/resolv.conf > /dev/null
 
 # Set hostname
-sudo hostnamectl set-hostname "dhcp"
+sudo hostnamectl set-hostname "dhcp.lab.internal"
 
 # Update and upgrade
 sudo apt update && sudo apt upgrade -y

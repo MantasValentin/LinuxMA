@@ -34,7 +34,7 @@ MASTER_FIREWALL_LAN_IP_V6=fd00:10::2
 VRRP_AUTH_PASS="VRRP_Secret"
 
 # Set hostname
-sudo hostnamectl set-hostname "firewall2"
+sudo hostnamectl set-hostname "firewall2.lab.internal"
 
 # Update and upgrade
 sudo apt update && sudo apt upgrade -y

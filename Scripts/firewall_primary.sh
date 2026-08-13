@@ -33,7 +33,7 @@ BACKUP_FIREWALL_LAN_IP_V6=fd00:10::3
 VRRP_AUTH_PASS="VRRP_Secret"
 
 # Set hostname
-sudo hostnamectl set-hostname "firewall1"
+sudo hostnamectl set-hostname "firewall1.lab.internal"
 
 # Update and upgrade
 sudo apt update && sudo apt upgrade -y
