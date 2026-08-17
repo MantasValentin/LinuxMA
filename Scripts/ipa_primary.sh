@@ -39,19 +39,15 @@ sudo dnf install -y epel-release
 # systemd-networkd - Networking
 sudo dnf install -y ipa-server chrony nftables openssh-server git systemd-networkd
 
-# Rocky uses NetworkManager (not systemd-resolved) to own DNS/interfaces by
-# default - disable and mask it, systemd-networkd takes over below, same
-# role netplan removal plays on the Ubuntu box.
 sudo systemctl disable --now NetworkManager
 sudo systemctl mask NetworkManager
 sudo systemctl enable systemd-networkd --now
 sudo systemctl enable nftables --now
 
-# ssh service unit is named "sshd" on RHEL/Rocky, not "ssh"
+# ssh service unit
 sudo systemctl enable sshd --now
 
-# Rocky ships firewalld active out of the box - we're standardizing on
-# nftables instead, so it needs to go
+# nftables instead
 sudo systemctl disable --now firewalld
 
 # LAN interface
