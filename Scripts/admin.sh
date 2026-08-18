@@ -26,7 +26,7 @@ sudo dnf upgrade -y
 # git              - pulling config from your repo
 # systemd-networkd - networking
 sudo dnf install -y epel-release
-sudo dnf install -y openssh-server ansible git nftables systemd-networkd
+sudo dnf install -y openssh-server ansible-core git nftables systemd-networkd
 
 # replace NetworkManager with systemd-networkd
 sudo systemctl disable --now NetworkManager
