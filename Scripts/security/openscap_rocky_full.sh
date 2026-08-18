@@ -9,11 +9,10 @@ if [ "$#" -ne 1 ]; then
 fi
 
 MACHINE=$1
-LEVEL=$2
 PROFILE_1=""
 PROFILE_2=""
 
-if [[ "$MACHINE" == "server"]]; then
+if [[ "$MACHINE" == "server" ]]; then
     PROFILE_1="xccdf_org.ssgproject.content_profile_cis_server_l1"
     PROFILE_2="xccdf_org.ssgproject.content_profile_cis"
 elif [[ "$MACHINE" == "workstation" ]]; then

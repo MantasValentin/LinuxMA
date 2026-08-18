@@ -13,7 +13,7 @@ MACHINE=$1
 LEVEL=$2
 PROFILE=""
 
-if [[ "$MACHINE" == "server"]]; then
+if [[ "$MACHINE" == "server" ]]; then
     if [[ "$LEVEL" == 1 ]]; then
         PROFILE="xccdf_org.ssgproject.content_profile_cis_server_l1"
     elif [[ "$LEVEL" == 2 ]]; then
