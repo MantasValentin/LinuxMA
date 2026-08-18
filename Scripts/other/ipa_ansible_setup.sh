@@ -10,7 +10,7 @@ fi
 IPA_ADMIN_PASSWORD=$1
 SSH_PUBKEY_FILE=$2
 
-HOSTGROUP=ansible-managed
+HOSTGROUP=ansible-admin
 SUDORULE=ansible-nopasswd-all
 HBACRULE=ansible-ssh-access
 ANSIBLE_USER=ansible
