@@ -25,13 +25,17 @@ fi
 
 sudo dnf install -y openscap-scanner scap-security-guide
 
-mkdir /root/openscap
+mkdir -p /root/openscap
+
+echo "Running level 1 scan"
 
 sudo oscap xccdf eval \
     --profile "${PROFILE_1}" \
     --results "/root/openscap/results-${MACHINE}-level1.xml" \
     --report "/root/openscap/report-${MACHINE}-level1.html" \
     /usr/share/xml/scap/ssg/content/ssg-rl10-ds.xml
+
+echo "Running level 2 scan"
 
 sudo oscap xccdf eval \
     --profile "${PROFILE_2}" \

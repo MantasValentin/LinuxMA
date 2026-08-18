@@ -38,7 +38,7 @@ fi
 
 sudo dnf install -y openscap-scanner scap-security-guide
 
-mkdir /root/openscap
+mkdir -p /root/openscap
 
 sudo oscap xccdf eval \
     --profile "${PROFILE}" \
