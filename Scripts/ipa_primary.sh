@@ -115,8 +115,8 @@ sudo ipa-server-install \
     --admin-password="$IPA_ADMIN_PASSWORD" \
     --no-host-dns \
     --no-ntp \
-    --idstart=2000 \
-    --idmax=2999 \
+    --idstart=100000 \
+    --idmax=101000 \
     --unattended
 
 # Firewall Config
