@@ -30,13 +30,13 @@ sudo hostnamectl set-hostname "ipa2.lab.internal"
 sudo dnf upgrade -y
 
 # epel-release     - Extra Packages
-sudo dnf install -y epel-release
 # ipa-server       - the IPA stack
 # chrony           - accurate time is mandatory for Kerberos
 # nftables         - firewall
 # openssh-server   - remote management
 # git              - pulling config from your repo
 # systemd-networkd - Networking
+sudo dnf install -y epel-release
 sudo dnf install -y ipa-server chrony nftables openssh-server git systemd-networkd
 
 # replace NetworkManager with systemd-networkd

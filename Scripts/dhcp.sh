@@ -31,6 +31,7 @@ sudo dnf upgrade -y
 # nftables         - firewall
 # dnsmasq          - DHCP
 # systemd-networkd - networking
+sudo dnf install -y epel-release
 sudo dnf install -y openssh-server git nftables dnsmasq systemd-networkd
 
 # Remove the temporary networking

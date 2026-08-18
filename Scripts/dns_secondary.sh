@@ -40,6 +40,7 @@ sudo dnf upgrade -y
 # openssh-server   - remote management
 # git              - pulling config from your repo
 # systemd-networkd - networking
+sudo dnf install -y epel-release
 sudo dnf install -y bind bind-utils nftables openssh-server git systemd-networkd
 
 # Remove the temporary networking
