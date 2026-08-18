@@ -1,6 +1,8 @@
 #!/bin/bash
 set -euo pipefail
 
+# Rocky Linux 10.2
+
 # Interface
 NIC=ens34
 LAN_IP_V4=10.0.0.7
@@ -15,33 +17,35 @@ GATEWAY_V6=fd00:10::1
 # sudo ip link set "$NIC" up
 # sudo ip addr add 10.0.0.250/24 dev "$NIC"
 # sudo ip route add default via 10.0.0.1
-# sudo systemctl disable --now systemd-resolved
 # echo "nameserver 1.1.1.1" | sudo tee /etc/resolv.conf > /dev/null
 
 # Set hostname
 sudo hostnamectl set-hostname "dns1.lab.internal"
 
 # Update and upgrade
-sudo apt update && sudo apt upgrade -y
+sudo dnf upgrade -y
 
-# bind9           - the DNS server itself
-# bind9utils      - named-checkconf / named-checkzone / rndc tools
-# bind9-doc       - documentation
-# dnsutils        - dig / nslookup for testing
-# nftables        - firewall
-# openssh-server  - remote management
-# git             - pulling config from your repo
-sudo apt install -y bind9 bind9utils bind9-doc dnsutils nftables openssh-server git
+# bind             - the DNS server itself
+# bind-utils       - dig / nslookup / named-checkconf / named-checkzone / tsig-keygen
+# nftables         - firewall
+# openssh-server   - remote management
+# git              - pulling config from your repo
+# systemd-networkd - networking
+sudo dnf install -y bind bind-utils nftables openssh-server git systemd-networkd
 
 # Remove the temporary networking
 sudo ip addr flush dev "$NIC"
 sudo ip route flush dev "$NIC"
 
-sudo systemctl enable nftables --now
-sudo systemctl enable ssh --now
+# replace NetworkManager with systemd-networkd
+sudo systemctl disable --now NetworkManager
+sudo systemctl mask NetworkManager
+sudo systemctl unmask systemd-networkd
+sudo systemctl enable systemd-networkd --now
 
-# Disable automatic dns resolution
-sudo systemctl disable --now systemd-resolved
+# replace firewalld with nftables
+sudo systemctl disable --now firewalld
+sudo systemctl enable nftables --now
 
 # LAN interface
 sudo tee /etc/systemd/network/10-lan.network > /dev/null <<EOT
@@ -65,27 +69,29 @@ nameserver fd00:10::53
 nameserver fd00:10::54
 EOT
 
-# Get rid of netplan configuration files
-sudo rm -fr /etc/netplan/
-
 # Restart networking
-sudo systemctl unmask systemd-networkd systemd-networkd-wait-online
-sudo systemctl enable systemd-networkd systemd-networkd-wait-online
 sudo systemctl restart systemd-networkd
 sudo networkctl reload
 sudo networkctl reconfigure "$NIC"
 
 # Use to generate a TSIG key for DNS authentication between primary and secondary dns servers
-sudo tsig-keygen -a hmac-sha256 xfer-key | sudo tee /etc/bind/tsig-xfer.key
+sudo mkdir -p /etc/named
+sudo tsig-keygen -a hmac-sha256 xfer-key | sudo tee /etc/named/tsig-xfer.key
 
 # Lock access to the key
-sudo chown root:bind /etc/bind/tsig-xfer.key
-sudo chmod 640 /etc/bind/tsig-xfer.key
+sudo chown root:named /etc/named/tsig-xfer.key
+sudo chmod 640 /etc/named/tsig-xfer.key
+
+# Top-level config just pulls in the split files below
+sudo tee /etc/named.conf > /dev/null <<EOT
+include "/etc/named/named.conf.options";
+include "/etc/named/named.conf.local";
+EOT
 
 # Deploy the config
-sudo tee /etc/bind/named.conf.options > /dev/null <<EOT
+sudo tee /etc/named/named.conf.options > /dev/null <<EOT
 options {
-    directory "/var/cache/bind";
+    directory "/var/named";
     recursion no;
     allow-query { localhost; 10.0.0.0/24; fd00:10::/64; };
     listen-on { any; };
@@ -96,12 +102,12 @@ options {
 };
 EOT
 
-sudo tee /etc/bind/named.conf.local > /dev/null <<EOT
-include "/etc/bind/tsig-xfer.key";
+sudo tee /etc/named/named.conf.local > /dev/null <<EOT
+include "/etc/named/tsig-xfer.key";
 
 zone "lab.internal" {
     type primary;
-    file "/etc/bind/db.lab.internal";
+    file "/var/named/db.lab.internal";
     allow-update { none; };
     allow-transfer { key xfer-key; };
     notify yes;
@@ -109,7 +115,7 @@ zone "lab.internal" {
 
 zone "0.0.10.in-addr.arpa" {
     type primary;
-    file "/etc/bind/db.10.0.0";
+    file "/var/named/db.10.0.0";
     allow-update { none; };
     allow-transfer { key xfer-key; };
     notify yes;
@@ -117,7 +123,7 @@ zone "0.0.10.in-addr.arpa" {
 
 zone "0.0.0.0.0.0.0.0.0.1.0.0.0.0.d.f.ip6.arpa" {
     type primary;
-    file "/etc/bind/db.fd00.10";
+    file "/var/named/db.fd00.10";
     allow-update { none; };
     allow-transfer { key xfer-key; };
     notify yes;
@@ -132,7 +138,7 @@ server fd00:10::8 {
 };
 EOT
 
-sudo tee /etc/bind/db.lab.internal > /dev/null <<'EOT'
+sudo tee /var/named/db.lab.internal > /dev/null <<'EOT'
 $TTL    3600
 @       IN      SOA     ns1.lab.internal. dns-admin.lab.internal. (
                              2026080601    ; Serial YYYYMMDDnn
@@ -223,7 +229,7 @@ app1         IN      A       10.0.0.70
 app1         IN      AAAA    fd00:10::70
 EOT
 
-sudo tee /etc/bind/db.10.0.0 > /dev/null <<'EOT'
+sudo tee /var/named/db.10.0.0 > /dev/null <<'EOT'
 $TTL    3600
 @       IN      SOA     ns1.lab.internal. dns-admin.lab.internal. (
                              2026080601    ; Serial YYYYMMDDnn
@@ -275,7 +281,7 @@ $TTL    3600
 70      IN      PTR     app1.lab.internal.
 EOT
 
-sudo tee /etc/bind/db.fd00.10 > /dev/null <<'EOT'
+sudo tee /var/named/db.fd00.10 > /dev/null <<'EOT'
 $TTL    3600
 @       IN      SOA     ns1.lab.internal. dns-admin.lab.internal. (
                              2026080601    ; Serial YYYYMMDDnn
@@ -326,20 +332,24 @@ $TTL    3600
 0.7.0.0.0.0.0.0.0.0.0.0.0.0.0.0     IN PTR app1.lab.internal.
 EOT
 
-sudo chown root:bind /etc/bind/db.lab.internal /etc/bind/db.10.0.0 /etc/bind/db.fd00.10
-sudo chmod 644 /etc/bind/db.lab.internal /etc/bind/db.10.0.0 /etc/bind/db.fd00.10
+sudo chown root:named /var/named/db.lab.internal /var/named/db.10.0.0 /var/named/db.fd00.10
+sudo chmod 644 /var/named/db.lab.internal /var/named/db.10.0.0 /var/named/db.fd00.10
+
+
+# Reset SELinux labels
+sudo restorecon -Rv /etc/named /var/named
 
 # Validate syntax and zones before restarting
 sudo named-checkconf
-sudo named-checkzone lab.internal /etc/bind/db.lab.internal
-sudo named-checkzone 0.0.10.in-addr.arpa /etc/bind/db.10.0.0
-sudo named-checkzone 0.0.0.0.0.0.0.0.0.1.0.0.0.0.d.f.ip6.arpa /etc/bind/db.fd00.10
+sudo named-checkzone lab.internal /var/named/db.lab.internal
+sudo named-checkzone 0.0.10.in-addr.arpa /var/named/db.10.0.0
+sudo named-checkzone 0.0.0.0.0.0.0.0.0.1.0.0.0.0.d.f.ip6.arpa /var/named/db.fd00.10
 
 sudo systemctl enable named
 sudo systemctl restart named
 
 # Firewall Config
-sudo tee /etc/nftables.conf > /dev/null <<EOT
+sudo tee /etc/sysconfig/nftables.conf > /dev/null <<EOT
 #!/usr/sbin/nft -f
 
 flush ruleset
@@ -381,7 +391,9 @@ table inet filter {
 }
 EOT
 
-sudo nft -f /etc/nftables.conf
+sudo nft -f /etc/sysconfig/nftables.conf
 sudo nft list ruleset
 sudo systemctl restart nftables
+
+sudo systemctl enable sshd --now
 sudo systemctl daemon-reload

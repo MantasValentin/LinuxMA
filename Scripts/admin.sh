@@ -1,6 +1,8 @@
 #!/bin/bash
 set -euo pipefail
 
+# Rocky Linux 10.2
+
 # Interface
 NIC=ens34
 LAN_IP_V4=10.0.0.20
@@ -14,20 +16,27 @@ GATEWAY_V6=fd00:10:0:0::1
 # Admin FQDN hostname
 sudo hostnamectl set-hostname "admin.lab.internal"
 
-# First update package lists and upgrade the machine
-sudo apt update && sudo apt upgrade -y
+# Update and upgrade
+sudo dnf upgrade -y
 
+# epel-release     - the "ansible" meta-package (with collections) ships from EPEL, not AppStream
 # ansible          - automation utility
 # nftables         - firewall
 # openssh-server   - remote management
 # git              - pulling config from your repo
-sudo apt install -y openssh-server ansible git nftables
+# systemd-networkd - networking
+sudo dnf install -y epel-release
+sudo dnf install -y openssh-server ansible git nftables systemd-networkd
 
+# replace NetworkManager with systemd-networkd
 sudo systemctl disable --now NetworkManager
 sudo systemctl mask NetworkManager
+sudo systemctl unmask systemd-networkd
 sudo systemctl enable systemd-networkd --now
+
+# replace firewalld with nftables
+sudo systemctl disable --now firewalld
 sudo systemctl enable nftables --now
-sudo systemctl enable ssh --now
 
 # LAN interface
 sudo tee /etc/systemd/network/10-lan.network > /dev/null <<EOT
@@ -51,12 +60,13 @@ nameserver fd00:10::53
 nameserver fd00:10::54
 EOT
 
-sudo systemctl unmask systemd-networkd
+# Restart networking
 sudo systemctl restart systemd-networkd
 sudo networkctl reload
 sudo networkctl reconfigure "$NIC"
 
-sudo tee /etc/nftables.conf > /dev/null <<EOT
+# Firewall Config
+sudo tee /etc/sysconfig/nftables.conf > /dev/null <<EOT
 #!/usr/sbin/nft -f
 
 flush ruleset
@@ -92,6 +102,9 @@ table inet filter {
 }
 EOT
 
-sudo nft -f /etc/nftables.conf
+sudo nft -f /etc/sysconfig/nftables.conf
 sudo nft list ruleset
 sudo systemctl restart nftables
+
+sudo systemctl enable sshd --now
+sudo systemctl daemon-reload

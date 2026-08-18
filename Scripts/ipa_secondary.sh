@@ -1,6 +1,8 @@
 #!/bin/bash
 set -euo pipefail
 
+# Rocky Linux 10.2
+
 # Check if the correct number of arguments is provided
 if [ "$#" -ne 1 ]; then
     echo "Usage: $0 <IPA_ADMIN_PASSWORD>"
@@ -29,7 +31,7 @@ sudo dnf upgrade -y
 
 # epel-release     - Extra Packages
 sudo dnf install -y epel-release
-# ipa-server       - the IPA stack (RHEL/Rocky package name for FreeIPA)
+# ipa-server       - the IPA stack
 # chrony           - accurate time is mandatory for Kerberos
 # nftables         - firewall
 # openssh-server   - remote management
@@ -37,20 +39,15 @@ sudo dnf install -y epel-release
 # systemd-networkd - Networking
 sudo dnf install -y ipa-server chrony nftables openssh-server git systemd-networkd
 
-# Rocky uses NetworkManager (not systemd-resolved) to own DNS/interfaces by
-# default - disable and mask it, systemd-networkd takes over below, same
-# role netplan removal plays on the Ubuntu box.
+# replace NetworkManager with systemd-networkd
 sudo systemctl disable --now NetworkManager
 sudo systemctl mask NetworkManager
+sudo systemctl unmask systemd-networkd
 sudo systemctl enable systemd-networkd --now
-sudo systemctl enable nftables --now
 
-# ssh service unit is named "sshd" on RHEL/Rocky, not "ssh"
-sudo systemctl enable sshd --now
-
-# Rocky ships firewalld active out of the box - we're standardizing on
-# nftables instead, so it needs to go
+# replace firewalld with nftables
 sudo systemctl disable --now firewalld
+sudo systemctl enable nftables --now
 
 # LAN interface
 sudo tee /etc/systemd/network/10-lan.network > /dev/null <<EOT
@@ -74,15 +71,12 @@ nameserver fd00:10::53
 nameserver fd00:10::54
 EOT
 
-# Restart networking (systemd-networkd ships as part of the base systemd
-# package on Rocky too, just disabled by default - same units as Ubuntu)
-sudo systemctl unmask systemd-networkd
+# Restart networking
 sudo systemctl restart systemd-networkd
 sudo networkctl reload
 sudo networkctl reconfigure "$NIC"
 
 # NTP configuration
-# Note: Rocky's chrony config lives at /etc/chrony.conf, not /etc/chrony/chrony.conf
 sudo tee /etc/chrony.conf > /dev/null <<EOT
 # Prefer the primary IPA server, fall back to public pool
 server ipa1.lab.internal iburst prefer
@@ -102,12 +96,10 @@ driftfile /var/lib/chrony/drift
 rtcsync
 EOT
 
-# chrony's service unit is "chronyd" on RHEL/Rocky, not "chrony"
 sudo systemctl enable chronyd --now
 sudo systemctl restart chronyd
 
-# Join as a client first (ipa-client-install/ipa-replica-install are the
-# same binaries and flags across distros)
+# Join as a client first
 sudo ipa-client-install \
     --domain=lab.internal \
     --realm=LAB.INTERNAL \
@@ -126,7 +118,8 @@ sudo ipa-replica-install \
     --admin-password="$IPA_ADMIN_PASSWORD" \
     --unattended
 
-sudo tee /etc/nftables.conf > /dev/null <<EOT
+# Firewall Config
+sudo tee /etc/sysconfig/nftables.conf > /dev/null <<EOT
 #!/usr/sbin/nft -f
 
 flush ruleset
@@ -184,6 +177,9 @@ table inet filter {
 }
 EOT
 
-sudo nft -f /etc/nftables.conf
+sudo nft -f /etc/sysconfig/nftables.conf
 sudo nft list ruleset
 sudo systemctl restart nftables
+
+sudo systemctl enable sshd --now
+sudo systemctl daemon-reload

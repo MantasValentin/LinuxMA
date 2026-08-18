@@ -1,6 +1,8 @@
 #!/bin/bash
 set -euo pipefail
 
+# Rocky Linux 10.2
+
 # Interface
 NIC=ens34
 LAN_IP_V4=10.0.0.4
@@ -22,24 +24,28 @@ LAN_PREFIX_NET_V6=fd00:10
 sudo hostnamectl set-hostname "dhcp.lab.internal"
 
 # Update and upgrade
-sudo apt update && sudo apt upgrade -y
+sudo dnf upgrade -y
 
-# Install the neccecasy packages
-# openssh-server  - remote management
-# git             - pulling config from your repo
-# nftables        - firewall
-# dnsmasq         - DHCP
-sudo apt install -y openssh-server git nftables dnsmasq
+# openssh-server   - remote management
+# git              - pulling config from your repo
+# nftables         - firewall
+# dnsmasq          - DHCP
+# systemd-networkd - networking
+sudo dnf install -y openssh-server git nftables dnsmasq systemd-networkd
 
 # Remove the temporary networking
 sudo ip addr flush dev "$NIC"
 sudo ip route flush dev "$NIC"
 
-# Disable automatic dns resolution
-sudo systemctl disable --now systemd-resolved
+# replace NetworkManager with systemd-networkd
+sudo systemctl disable --now NetworkManager
+sudo systemctl mask NetworkManager
+sudo systemctl unmask systemd-networkd
+sudo systemctl enable systemd-networkd --now
 
+# replace firewalld with nftables
+sudo systemctl disable --now firewalld
 sudo systemctl enable nftables --now
-sudo systemctl enable ssh --now
 
 # LAN interface
 sudo tee /etc/systemd/network/10-lan.network > /dev/null <<EOT
@@ -64,23 +70,18 @@ nameserver fd00:10::53
 nameserver fd00:10::54
 EOT
 
-# Get rid of netplan configuration files
-sudo rm -fr /etc/netplan/
-
 # Restart networking
-sudo systemctl unmask systemd-networkd systemd-networkd-wait-online
-sudo systemctl enable systemd-networkd systemd-networkd-wait-online
 sudo systemctl restart systemd-networkd
 sudo networkctl reload
 sudo networkctl reconfigure "$NIC"
 
-# Configure dnsmasq with DHCP, DNS listener disabled (port=0)
+# Configure dnsmasq with DHCP, DNS listener disabled
 sudo rm -f /etc/dnsmasq.conf
 sudo tee /etc/dnsmasq.conf > /dev/null <<EOT
 # Bind to the LAN interface
 interface=$NIC
 
-# IPv4 
+# IPv4
 # DHCP range
 dhcp-range=10.0.0.100,10.0.0.200,255.255.255.0,24h
 
@@ -97,7 +98,7 @@ dhcp-range=${LAN_PREFIX_NET_V6}::100,${LAN_PREFIX_NET_V6}::200,$LAN_PREFIX_V6,24
 # DNS server handed to clients is dns-rslv
 dhcp-option=option6:23,fd00:10::53,fd00:10::54
 
-# Disable dnsmasq's own DNS listener - this box does DHCP/RA only
+# Disable dnsmasq's own DNS listener
 port=0
 
 # Logging
@@ -107,8 +108,8 @@ EOT
 sudo systemctl enable dnsmasq
 sudo systemctl restart dnsmasq
 
-# Firewall input filtering only
-sudo tee /etc/nftables.conf > /dev/null <<EOT
+# Firewall config
+sudo tee /etc/sysconfig/nftables.conf > /dev/null <<EOT
 #!/usr/sbin/nft -f
 
 flush ruleset
@@ -150,7 +151,9 @@ table inet filter {
 }
 EOT
 
-sudo nft -f /etc/nftables.conf
+sudo nft -f /etc/sysconfig/nftables.conf
 sudo nft list ruleset
 sudo systemctl restart nftables
+
+sudo systemctl enable sshd --now
 sudo systemctl daemon-reload

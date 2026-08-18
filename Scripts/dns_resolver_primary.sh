@@ -1,6 +1,8 @@
 #!/bin/bash
 set -euo pipefail
 
+# Rocky Linux 10.2
+
 # Interface
 NIC=ens34
 LAN_IP_V4=10.0.0.53
@@ -15,32 +17,35 @@ GATEWAY_V6=fd00:10::1
 # sudo ip link set "$NIC" up
 # sudo ip addr add 10.0.0.250/24 dev "$NIC"
 # sudo ip route add default via 10.0.0.1
-# sudo systemctl disable --now systemd-resolved
 # echo "nameserver 1.1.1.1" | sudo tee /etc/resolv.conf > /dev/null
 
 # Set hostname
 sudo hostnamectl set-hostname "dns-rslv1.lab.internal"
 
 # Update and upgrade
-sudo apt update && sudo apt upgrade -y
+sudo dnf upgrade -y
 
-# bind9           - used here purely as a caching/forwarding resolver
-# bind9utils      - named-checkconf tools
-# dnsutils        - dig / nslookup for testing
-# nftables        - firewall
-# openssh-server  - remote management
-# git             - pulling config from your repo
-sudo apt install -y bind9 bind9utils dnsutils nftables openssh-server git
+# bind             - used here purely as a caching/forwarding resolver
+# bind-utils       - dig / nslookup / named-checkconf
+# nftables         - firewall
+# openssh-server   - remote management
+# git              - pulling config from your repo
+# systemd-networkd - networking
+sudo dnf install -y bind bind-utils nftables openssh-server git systemd-networkd
 
 # Remove the temporary networking
 sudo ip addr flush dev "$NIC"
 sudo ip route flush dev "$NIC"
 
-# Disable automatic dns resolution
-sudo systemctl disable --now systemd-resolved
+# replace NetworkManager with systemd-networkd
+sudo systemctl disable --now NetworkManager
+sudo systemctl mask NetworkManager
+sudo systemctl unmask systemd-networkd
+sudo systemctl enable systemd-networkd --now
 
+# replace firewalld with nftables
+sudo systemctl disable --now firewalld
 sudo systemctl enable nftables --now
-sudo systemctl enable ssh --now
 
 # LAN interface
 sudo tee /etc/systemd/network/10-lan.network > /dev/null <<EOT
@@ -55,12 +60,7 @@ Gateway=$GATEWAY_V6
 IPv6AcceptRA=no
 EOT
 
-# Get rid of netplan configuration files
-sudo rm -fr /etc/netplan/
-
 # Restart networking
-sudo systemctl unmask systemd-networkd systemd-networkd-wait-online
-sudo systemctl enable systemd-networkd systemd-networkd-wait-online
 sudo systemctl restart systemd-networkd
 sudo networkctl reload
 sudo networkctl reconfigure "$NIC"
@@ -72,10 +72,17 @@ nameserver 127.0.0.1
 nameserver ::1
 EOT
 
+# Top-level config just pulls in the split files below
+sudo tee /etc/named.conf > /dev/null <<EOT
+include "/etc/named/named.conf.options";
+include "/etc/named/named.conf.local";
+EOT
+
 # Recurse and cache for the LAN, forward everything else to public resolvers
-sudo tee /etc/bind/named.conf.options > /dev/null <<EOT
+sudo mkdir -p /etc/named
+sudo tee /etc/named/named.conf.options > /dev/null <<EOT
 options {
-    directory "/var/cache/bind";
+    directory "/var/named";
     recursion yes;
     allow-recursion { localhost; 10.0.0.0/24; fd00:10::/64; };
     allow-query { localhost; 10.0.0.0/24; fd00:10::/64; };
@@ -98,8 +105,8 @@ options {
 };
 EOT
 
-# lab.internal gets forwarded specifically to the authoritative pair (v4 + v6)
-sudo tee /etc/bind/named.conf.local > /dev/null <<EOT
+# lab.internal gets forwarded to the authoritative pair
+sudo tee /etc/named/named.conf.local > /dev/null <<EOT
 zone "lab.internal" {
     type forward;
     forward only;
@@ -119,12 +126,16 @@ zone "0.0.0.0.0.0.0.0.0.1.0.0.0.0.d.f.ip6.arpa" {
 };
 EOT
 
-sudo named-checkconf
+# Reset SELinux labels
+sudo restorecon -Rv /etc/named
 
+# Validate syntax before restarting
+sudo named-checkconf
 sudo systemctl enable named
 sudo systemctl restart named
 
-sudo tee /etc/nftables.conf > /dev/null <<EOT
+# Firewall config
+sudo tee /etc/sysconfig/nftables.conf > /dev/null <<EOT
 #!/usr/sbin/nft -f
 
 flush ruleset
@@ -166,7 +177,9 @@ table inet filter {
 }
 EOT
 
-sudo nft -f /etc/nftables.conf
+sudo nft -f /etc/sysconfig/nftables.conf
 sudo nft list ruleset
 sudo systemctl restart nftables
+
+sudo systemctl enable sshd --now
 sudo systemctl daemon-reload

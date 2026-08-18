@@ -1,25 +1,29 @@
 #!/usr/bin/env bash
 set -euo pipefail
-export DEBIAN_FRONTEND=noninteractive
 
-# Check if the correct number of arguments is provided
+# Rocky Linux 10.2
+
 if [ "$#" -ne 1 ]; then
     echo "Usage: $0 <IPA_ADMIN_PASSWORD>"
     echo "Example: bash ipa_client_setup.sh password1"
     exit 1
 fi
 
-# Input Database Manager password and Admin password
 IPA_ADMIN_PASSWORD=$1
 
-# Derives the FQDN from this host's existing short hostname (dns1, dhcp, firewall, etc.)
 HOSTNAME_SHORT=$(hostname -s)
 FQDN="${HOSTNAME_SHORT}.lab.internal"
 
-sudo apt-get update
-sudo apt-get install -y freeipa-client chrony
+sudo dnf upgrade -y
 
-sudo tee /etc/chrony/chrony.conf > /dev/null <<EOT
+# epel-release - a couple of ipa-client's deps ship from EPEL, same as ipa-server
+# ipa-client   - the RHEL/Rocky package name for the FreeIPA client (freeipa-client on Debian/Ubuntu)
+# chrony       - accurate time is mandatory for Kerberos
+sudo dnf install -y epel-release
+sudo dnf install -y ipa-client chrony
+
+# chrony config
+sudo tee /etc/chrony.conf > /dev/null <<EOT
 # Upstream time sources
 server ipa1.lab.internal iburst prefer
 server ipa2.lab.internal iburst
@@ -33,8 +37,8 @@ driftfile /var/lib/chrony/drift
 rtcsync
 EOT
 
-sudo systemctl enable chrony --now
-sudo systemctl restart chrony
+sudo systemctl enable chronyd --now
+sudo systemctl restart chronyd
 
 getent hosts "$FQDN" || { echo "DNS lookup failed for $FQDN"; exit 1; }
 

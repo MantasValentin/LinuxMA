@@ -1,6 +1,8 @@
 #!/bin/bash
 set -euo pipefail
 
+# Rocky Linux 10.2
+
 # Check if the correct number of arguments is provided
 if [ "$#" -ne 2 ]; then
     echo "Usage: $0 <IPA_ADMIN_PASSWORD> <IPA_DM_PASSWORD>"
@@ -30,8 +32,7 @@ sudo dnf upgrade -y
 
 # epel-release     - Extra Packages
 sudo dnf install -y epel-release
-# ipa-server       - the IPA stack (this is the RHEL/Rocky package name;
-#                    upstream FreeIPA calls it freeipa-server on Debian/Ubuntu)
+# ipa-server       - the IPA stack 
 # chrony           - accurate time is mandatory for Kerberos
 # nftables         - firewall
 # openssh-server   - remote management
@@ -39,16 +40,15 @@ sudo dnf install -y epel-release
 # systemd-networkd - Networking
 sudo dnf install -y ipa-server chrony nftables openssh-server git systemd-networkd
 
+# replace NetworkManager with systemd-networkd
 sudo systemctl disable --now NetworkManager
 sudo systemctl mask NetworkManager
+sudo systemctl unmask systemd-networkd
 sudo systemctl enable systemd-networkd --now
-sudo systemctl enable nftables --now
 
-# ssh service unit
-sudo systemctl enable sshd --now
-
-# nftables instead
+# replace firewalld with nftables
 sudo systemctl disable --now firewalld
+sudo systemctl enable nftables --now
 
 # LAN interface
 sudo tee /etc/systemd/network/10-lan.network > /dev/null <<EOT
@@ -72,15 +72,13 @@ nameserver fd00:10::53
 nameserver fd00:10::54
 EOT
 
-# Restart networking (systemd-networkd ships as part of the base systemd
-# package on Rocky too, just disabled by default - same units as Ubuntu)
-sudo systemctl unmask systemd-networkd
+# Restart networking
 sudo systemctl restart systemd-networkd
 sudo networkctl reload
 sudo networkctl reconfigure "$NIC"
 
 # NTP configuration
-# Note: Rocky's chrony config lives at /etc/chrony.conf, not /etc/chrony/chrony.conf
+
 sudo tee /etc/chrony.conf > /dev/null <<EOT
 # Upstream time sources
 pool 2.rocky.pool.ntp.org iburst
@@ -103,12 +101,10 @@ driftfile /var/lib/chrony/drift
 rtcsync
 EOT
 
-# chrony's service unit is "chronyd" on RHEL/Rocky, not "chrony"
 sudo systemctl enable chronyd --now
 sudo systemctl restart chronyd
 
-# IPA server install (ipa-server-install itself is identical across distros -
-# only the package name that ships the binary differs
+# IPA server install
 sudo ipa-server-install \
     --realm=LAB.INTERNAL \
     --domain=lab.internal \
@@ -123,7 +119,8 @@ sudo ipa-server-install \
     --idmax=2999 \
     --unattended
 
-sudo tee /etc/nftables.conf > /dev/null <<EOT
+# Firewall Config
+sudo tee /etc/sysconfig/nftables.conf > /dev/null <<EOT
 #!/usr/sbin/nft -f
 
 flush ruleset
@@ -181,6 +178,9 @@ table inet filter {
 }
 EOT
 
-sudo nft -f /etc/nftables.conf
+sudo nft -f /etc/sysconfig/nftables.conf
 sudo nft list ruleset
 sudo systemctl restart nftables
+
+sudo systemctl enable sshd --now
+sudo systemctl daemon-reload

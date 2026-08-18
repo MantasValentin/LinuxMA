@@ -1,6 +1,8 @@
 #!/bin/bash
 set -euo pipefail
 
+# Rocky Linux 10.2
+
 # External (WAN) and internal (LAN) interfaces
 NIC_E=ens33
 NIC_I=ens34
@@ -36,15 +38,18 @@ VRRP_AUTH_PASS="VRRP_Secret"
 sudo hostnamectl set-hostname "firewall1.lab.internal"
 
 # Update and upgrade
-sudo apt update && sudo apt upgrade -y
+sudo dnf upgrade -y
 
-# openssh-server  - remote management
-# git             - pulling config from your repo
-# nftables        - firewall, NAT, DNAT
-# keepalived      - for configuring a virtual IP
-# conntrackd      - syncs the connection-tracking table for both firewalls
-# radvd           - ipv6 RA
-sudo apt install -y openssh-server git nftables keepalived conntrackd radvd
+# epel-release      - conntrackd and radvd ship from EPEL on Rocky
+# openssh-server    - remote management
+# git               - pulling config from your repo
+# nftables          - firewall, NAT, DNAT
+# keepalived        - for configuring a virtual IP
+# conntrackd        - syncs the connection-tracking table for both firewalls
+# radvd             - ipv6 RA
+# systemd-networkd  - networking
+sudo dnf install -y epel-release
+sudo dnf install -y openssh-server git nftables keepalived conntrackd radvd systemd-networkd
 
 # Enable IP forwarding
 sudo tee /etc/sysctl.d/99-firewall.conf > /dev/null <<EOT
@@ -71,12 +76,18 @@ net.ipv6.conf.all.accept_ra=0
 EOT
 sudo sysctl --system
 
-# Disable automatic dns resolution and RA
-sudo systemctl disable --now systemd-resolved
-sudo systemctl disable --now radvd
+# replace NetworkManager with systemd-networkd
+sudo systemctl disable --now NetworkManager
+sudo systemctl mask NetworkManager
+sudo systemctl unmask systemd-networkd
+sudo systemctl enable systemd-networkd --now
 
+# replace firewalld with nftables
+sudo systemctl disable --now firewalld
 sudo systemctl enable nftables --now
-sudo systemctl enable ssh --now
+
+# radvd is started by keepalived's notify script on transition to MASTER, not at boot
+sudo systemctl disable --now radvd
 
 # WAN interface
 sudo tee /etc/systemd/network/10-wan.network > /dev/null <<EOT
@@ -102,12 +113,7 @@ Address=$LAN_IP_V6/$LAN_PREFIX_V6
 IPv6AcceptRA=no
 EOT
 
-# Get rid of netplan configuration files
-sudo rm -fr /etc/netplan/
-
 # Restart networking
-sudo systemctl unmask systemd-networkd systemd-networkd-wait-online
-sudo systemctl enable systemd-networkd systemd-networkd-wait-online
 sudo systemctl restart systemd-networkd
 sudo networkctl reload
 sudo networkctl reconfigure "$NIC_E" "$NIC_I"
@@ -121,8 +127,8 @@ nameserver fd00:10::53
 nameserver fd00:10::54
 EOT
 
-# NAT and filtering
-sudo tee /etc/nftables.conf > /dev/null <<EOT
+# Firewall Config
+sudo tee /etc/sysconfig/nftables.conf > /dev/null <<EOT
 #!/usr/sbin/nft -f
 
 flush ruleset
@@ -218,7 +224,7 @@ table inet filter {
 }
 EOT
 
-sudo nft -f /etc/nftables.conf
+sudo nft -f /etc/sysconfig/nftables.conf
 sudo nft list ruleset
 sudo systemctl restart nftables
 
@@ -454,6 +460,7 @@ EOT
 
 sudo chmod +x /etc/keepalived/notify.sh
 sudo chown root:root /etc/keepalived/notify.sh
+sudo restorecon -v /etc/keepalived/notify.sh
 
 # Make sure conntrackd is up before keepalived
 sudo mkdir -p /etc/systemd/system/keepalived.service.d
@@ -486,6 +493,8 @@ interface $NIC_I {
 };
 EOT
 
+
+sudo systemctl enable sshd --now
 sudo systemctl daemon-reload
 sudo systemctl enable --now conntrackd
 sudo systemctl enable --now keepalived
