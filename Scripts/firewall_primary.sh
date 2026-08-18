@@ -45,11 +45,11 @@ sudo dnf upgrade -y
 # git               - pulling config from your repo
 # nftables          - firewall, NAT, DNAT
 # keepalived        - for configuring a virtual IP
-# conntrackd        - syncs the connection-tracking table for both firewalls
+# conntrack-tools   - syncs the connection-tracking table for both firewalls
 # radvd             - ipv6 RA
 # systemd-networkd  - networking
 sudo dnf install -y epel-release
-sudo dnf install -y openssh-server git nftables keepalived conntrackd radvd systemd-networkd
+sudo dnf install -y openssh-server git nftables keepalived conntrack-tools radvd systemd-networkd
 
 # Enable IP forwarding
 sudo tee /etc/sysctl.d/99-firewall.conf > /dev/null <<EOT
