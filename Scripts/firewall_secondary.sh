@@ -199,9 +199,11 @@ table inet filter {
         # Drop invalid packets
         ct state invalid drop
 
-        # ICMP errors should be forwarded
-        ip protocol icmp icmp type { destination-unreachable, time-exceeded } accept
-        ip6 nexthdr icmpv6 icmpv6 type { destination-unreachable, packet-too-big, time-exceeded, parameter-problem } accept
+        # ICMPv4
+        ip protocol icmp accept
+        
+        # ICMPv6
+        meta l4proto ipv6-icmp accept
 
         iifname "$NIC_E" oifname "$NIC_I" ip daddr 10.0.0.60 tcp dport { 80, 443 } accept
         iifname "$NIC_E" oifname "$NIC_I" ip6 daddr fd00:10::60 tcp dport { 80, 443 } accept
