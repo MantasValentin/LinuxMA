@@ -158,7 +158,7 @@ datasources:
   - name: Prometheus
     type: prometheus
     access: proxy
-    url: http://localhost:9090
+    url: http://127.0.0.1:9090
     isDefault: true
     editable: false
 EOT

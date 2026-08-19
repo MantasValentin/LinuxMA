@@ -19,12 +19,12 @@ sudo hostnamectl set-hostname "logs.lab.internal"
 # Update and upgrade
 sudo dnf upgrade -y
 
-# epel-release             - a couple of deps come from EPEL
-# policycoreutils-python-utils - semanage, for the SELinux port labels below
-# nftables                 - firewall
-# openssh-server           - remote management
-# git                      - pulling config from your repo
-# systemd-networkd         - networking
+# epel-release                  - a couple of deps come from EPEL
+# policycoreutils-python-utils  - semanage, for the SELinux port labels below
+# nftables                      - firewall
+# openssh-server                - remote management
+# git                           - pulling config from your repo
+# systemd-networkd              - networking
 sudo dnf install -y epel-release
 sudo dnf install -y policycoreutils-python-utils nftables openssh-server git systemd-networkd
 
