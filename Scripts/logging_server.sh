@@ -71,7 +71,7 @@ vm.max_map_count=262144
 EOT
 sudo sysctl --system
 
-# Add the Elastic, lopgstash, kibana package repo
+# Add the Elastic, logstash, kibana package repo
 sudo rpm --import https://artifacts.elastic.co/GPG-KEY-elasticsearch
 sudo tee /etc/yum.repos.d/elasticsearch.repo > /dev/null <<EOT
 [elasticsearch]
@@ -106,20 +106,21 @@ EOT
 sudo dnf install --enablerepo=elasticsearch elasticsearch logstash kibana -y
 
 # Elasticsearch single node, local-only
-# sudo tee /etc/elasticsearch/elasticsearch.yml > /dev/null <<EOT
-# path.data: /var/lib/elasticsearch
-# path.logs: /var/log/elasticsearch
-# cluster.name: lab-logs
-# node.name: logs
-# http.host: 0.0.0.0
-# network.host: 0.0.0.0
-# transport.host: 0.0.0.0
-# http.port: 9200
-# discovery.type: single-node
+sudo tee /etc/elasticsearch/elasticsearch.yml > /dev/null <<EOT
+path.data: /var/lib/elasticsearch
+path.logs: /var/log/elasticsearch
+cluster.name: lab-logs
+node.name: logs
+network.host: 127.0.0.1
+discovery.type: single-node
 
-# xpack.security.enabled: false
-# xpack.security.enrollment.enabled: false
-# EOT
+xpack.security.enabled: false
+xpack.security.enrollment.enabled: false
+xpack.security.http.ssl:
+    enabled: false
+xpack.security.transport.ssl:
+    enabled: false
+EOT
 
 sudo mkdir -p /etc/elasticsearch/jvm.options.d
 sudo tee /etc/elasticsearch/jvm.options.d/heap.options > /dev/null <<EOT
