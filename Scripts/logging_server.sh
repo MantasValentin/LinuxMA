@@ -111,9 +111,9 @@ path.data: /var/lib/elasticsearch
 path.logs: /var/log/elasticsearch
 cluster.name: lab-logs
 node.name: logs
-http.host: 127.0.0.1
-network.host: 127.0.0.1
-transport.host: 127.0.0.1
+http.host: 0.0.0.0
+network.host: 0.0.0.0
+transport.host: 0.0.0.0
 http.port: 9200
 discovery.type: single-node
 
