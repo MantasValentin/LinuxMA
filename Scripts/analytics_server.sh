@@ -114,7 +114,8 @@ User=prometheus
 Group=prometheus
 ExecStart=/usr/local/bin/prometheus \\
     --config.file=/etc/prometheus/prometheus.yml \\
-    --storage.tsdb.path=/var/lib/prometheus
+    --storage.tsdb.path=/var/lib/prometheus \\
+    --web.listen-address=$LAN_IP_V4:9090
 ExecReload=/bin/kill -HUP \$MAINPID
 Restart=on-failure
 
@@ -142,34 +143,30 @@ EOT
 
 sudo dnf install grafana -y
 
+sudo tee -a /etc/grafana/grafana.ini > /dev/null <<EOT
+[server]
+http_addr = $LAN_IP_V4
+http_port = 3000
+EOT
+
+# Set Prometheus as a datasource
+sudo mkdir -p /etc/grafana/provisioning/datasources
+sudo tee /etc/grafana/provisioning/datasources/prometheus.yml > /dev/null <<EOT
+apiVersion: 1
+
+datasources:
+  - name: Prometheus
+    type: prometheus
+    access: proxy
+    url: http://localhost:9090
+    isDefault: true
+    editable: false
+EOT
+
+sudo restorecon -Rv /etc/grafana /etc/prometheus 2>/dev/null || true
+
 sudo systemctl daemon-reload
 sudo systemctl enable grafana-server --now
-
-# sudo tee -a /etc/grafana/grafana.ini > /dev/null <<EOT
-
-# # --- lab overrides ---
-# [server]
-# http_addr = $LAN_IP_V4
-# http_port = 3000
-# EOT
-
-# # Auto-provision Prometheus as a datasource so it's there on first login
-# sudo mkdir -p /etc/grafana/provisioning/datasources
-# sudo tee /etc/grafana/provisioning/datasources/prometheus.yml > /dev/null <<EOT
-# apiVersion: 1
-
-# datasources:
-#   - name: Prometheus
-#     type: prometheus
-#     access: proxy
-#     url: http://127.0.0.1:9090
-#     isDefault: true
-#     editable: true
-# EOT
-
-# sudo restorecon -Rv /etc/grafana /etc/prometheus 2>/dev/null || true
-
-# sudo systemctl enable grafana-server --now
 
 # Firewall Config
 sudo tee /etc/sysconfig/nftables.conf > /dev/null <<EOT
