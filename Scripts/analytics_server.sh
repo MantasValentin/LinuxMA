@@ -75,8 +75,6 @@ curl -sL "https://github.com/prometheus/prometheus/releases/download/v${PROMETHE
 tar -xzf /tmp/prometheus.tar.gz -C /tmp
 sudo cp "/tmp/prometheus-${PROMETHEUS_VERSION}.linux-amd64/prometheus" /usr/local/bin/prometheus
 sudo cp "/tmp/prometheus-${PROMETHEUS_VERSION}.linux-amd64/promtool" /usr/local/bin/promtool
-sudo cp -r "/tmp/prometheus-${PROMETHEUS_VERSION}.linux-amd64/consoles" /etc/prometheus/
-sudo cp -r "/tmp/prometheus-${PROMETHEUS_VERSION}.linux-amd64/console_libraries" /etc/prometheus/
 rm -rf /tmp/prometheus.tar.gz "/tmp/prometheus-${PROMETHEUS_VERSION}.linux-amd64"
 
 # Scrape config
@@ -116,10 +114,7 @@ User=prometheus
 Group=prometheus
 ExecStart=/usr/local/bin/prometheus \\
     --config.file=/etc/prometheus/prometheus.yml \\
-    --storage.tsdb.path=/var/lib/prometheus \\
-    --web.listen-address=$LAN_IP_V4:9090 \\
-    --web.console.templates=/etc/prometheus/consoles \\
-    --web.console.libraries=/etc/prometheus/console_libraries
+    --storage.tsdb.path=/var/lib/prometheus
 ExecReload=/bin/kill -HUP \$MAINPID
 Restart=on-failure
 
