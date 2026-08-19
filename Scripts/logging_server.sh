@@ -28,10 +28,6 @@ sudo dnf upgrade -y
 sudo dnf install -y epel-release
 sudo dnf install -y policycoreutils-python-utils nftables openssh-server git systemd-networkd
 
-# Remove the temporary networking
-sudo ip addr flush dev "$NIC"
-sudo ip route flush dev "$NIC"
-
 # replace NetworkManager with systemd-networkd
 sudo systemctl disable --now NetworkManager
 sudo systemctl mask NetworkManager

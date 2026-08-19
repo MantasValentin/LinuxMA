@@ -30,10 +30,6 @@ sudo dnf upgrade -y
 sudo dnf install -y epel-release
 sudo dnf install -y nftables openssh-server git systemd-networkd tar curl
 
-# Remove the temporary networking
-sudo ip addr flush dev "$NIC"
-sudo ip route flush dev "$NIC"
-
 # replace NetworkManager with systemd-networkd
 sudo systemctl disable --now NetworkManager
 sudo systemctl mask NetworkManager
@@ -75,8 +71,7 @@ sudo networkctl reconfigure "$NIC"
 sudo useradd --system --no-create-home --shell /sbin/nologin prometheus || true
 sudo mkdir -p /etc/prometheus/targets /var/lib/prometheus
 
-curl -sL "https://github.com/prometheus/prometheus/releases/download/v${PROMETHEUS_VERSION}/prometheus-${PROMETHEUS_VERSION}.linux-amd64.tar.gz" \
-    -o /tmp/prometheus.tar.gz
+curl -sL "https://github.com/prometheus/prometheus/releases/download/v${PROMETHEUS_VERSION}/prometheus-${PROMETHEUS_VERSION}.linux-amd64.tar.gz" -o /tmp/prometheus.tar.gz
 tar -xzf /tmp/prometheus.tar.gz -C /tmp
 sudo cp "/tmp/prometheus-${PROMETHEUS_VERSION}.linux-amd64/prometheus" /usr/local/bin/prometheus
 sudo cp "/tmp/prometheus-${PROMETHEUS_VERSION}.linux-amd64/promtool" /usr/local/bin/promtool
@@ -150,7 +145,7 @@ gpgkey=https://rpm.grafana.com/gpg.key
 sslverify=1
 EOT
 
-sudo dnf install grafana
+sudo dnf install grafana -y
 
 sudo systemctl daemon-reload
 sudo systemctl enable grafana-server --now
