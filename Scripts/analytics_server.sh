@@ -68,6 +68,10 @@ sudo networkctl reload
 sudo networkctl reconfigure "$NIC"
 
 # Prometheus
+# Cockpit binds :9090 by default and conflicts with Prometheus
+sudo systemctl disable --now cockpit.socket
+sudo systemctl mask cockpit.socket
+
 sudo useradd --system --no-create-home --shell /sbin/nologin prometheus || true
 sudo mkdir -p /etc/prometheus/targets /var/lib/prometheus
 
