@@ -71,7 +71,7 @@ vm.max_map_count=262144
 EOT
 sudo sysctl --system
 
-# Add the Elastic package repo
+# Add the Elastic, lopgstash, kibana package repo
 sudo rpm --import https://artifacts.elastic.co/GPG-KEY-elasticsearch
 sudo tee /etc/yum.repos.d/elasticsearch.repo > /dev/null <<EOT
 [elasticsearch]
@@ -82,9 +82,28 @@ gpgkey=https://artifacts.elastic.co/GPG-KEY-elasticsearch
 enabled=0
 type=rpm-md
 EOT
+sudo tee /etc/yum.repos.d/logstash.repo > /dev/null <<EOT
+[logstash-9.x]
+name=Elastic repository for 9.x packages
+baseurl=https://artifacts.elastic.co/packages/9.x/yum
+gpgcheck=1
+gpgkey=https://artifacts.elastic.co/GPG-KEY-elasticsearch
+enabled=1
+autorefresh=1
+type=rpm-md
+EOT
+sudo tee /etc/yum.repos.d/kibana.repo > /dev/null <<EOT
+[kibana-9.X]
+name=Kibana repository for 9.x packages
+baseurl=https://artifacts.elastic.co/packages/9.x/yum
+gpgcheck=1
+gpgkey=https://artifacts.elastic.co/GPG-KEY-elasticsearch
+enabled=1
+autorefresh=1
+type=rpm-md
+EOT
 
-sudo dnf install --enablerepo=elasticsearch elasticsearch -y
-sudo dnf install -y logstash kibana
+sudo dnf install --enablerepo=elasticsearch elasticsearch logstash kibana -y
 
 # Elasticsearch single node, local-only
 sudo tee -a /etc/elasticsearch/elasticsearch.yml > /dev/null <<EOT
