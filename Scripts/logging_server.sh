@@ -71,33 +71,30 @@ vm.max_map_count=262144
 EOT
 sudo sysctl --system
 
-# Add the Elastic package repo (tracks the latest 8.x release)
+# Add the Elastic package repo
 sudo rpm --import https://artifacts.elastic.co/GPG-KEY-elasticsearch
-sudo tee /etc/yum.repos.d/elastic.repo > /dev/null <<EOT
-[elastic-8.x]
-name=Elastic repository for 8.x packages
-baseurl=https://artifacts.elastic.co/packages/8.x/yum
+sudo tee /etc/yum.repos.d/elasticsearch.repo > /dev/null <<EOT
+[elasticsearch]
+name=Elasticsearch repository for 9.x packages
+baseurl=https://artifacts.elastic.co/packages/9.x/yum
 gpgcheck=1
 gpgkey=https://artifacts.elastic.co/GPG-KEY-elasticsearch
-enabled=1
-autorefresh=1
+enabled=0
 type=rpm-md
 EOT
 
-sudo dnf install -y elasticsearch logstash kibana
+sudo dnf install --enablerepo=elasticsearch elasticsearch -y
+sudo dnf install -y logstash kibana
 
-# Elasticsearch - single node, local-only. Kibana and Logstash are the only
-# things that ever need to talk to it, and they run on this same box.
+# Elasticsearch single node, local-only
 sudo tee -a /etc/elasticsearch/elasticsearch.yml > /dev/null <<EOT
-
-# --- lab overrides ---
 cluster.name: lab-logs
 node.name: logs
 network.host: 127.0.0.1
+transport.host: 127.0.0.1
 http.port: 9200
 discovery.type: single-node
 
-# Internal lab, no external exposure - keep this simple
 xpack.security.enabled: false
 xpack.security.enrollment.enabled: false
 EOT
@@ -108,7 +105,7 @@ sudo tee /etc/elasticsearch/jvm.options.d/heap.options > /dev/null <<EOT
 -Xmx2g
 EOT
 
-# Logstash - receive from Filebeat on 5044, forward to Elasticsearch
+# Logstash receive from Filebeat on 5044, forward to Elasticsearch
 sudo tee /etc/logstash/conf.d/beats-to-es.conf > /dev/null <<EOT
 input {
   beats {
@@ -127,10 +124,8 @@ output {
 }
 EOT
 
-# Kibana - reachable from the LAN
+# Kibana reachable from the LAN
 sudo tee -a /etc/kibana/kibana.yml > /dev/null <<EOT
-
-# --- lab overrides ---
 server.host: "$LAN_IP_V4"
 server.port: 5601
 elasticsearch.hosts: ["http://127.0.0.1:9200"]
@@ -142,18 +137,16 @@ sudo semanage port -a -t http_port_t -p tcp 5044 2>/dev/null || sudo semanage po
 
 sudo restorecon -Rv /etc/elasticsearch /etc/logstash /etc/kibana /var/lib/elasticsearch 2>/dev/null || true
 
-# Bring the stack up in dependency order. Elasticsearch has to actually be
-# answering before Kibana will start cleanly.
+# Bring the stack up in dependency order
 sudo systemctl enable elasticsearch --now
 
-echo "Waiting for Elasticsearch to become reachable..."
+# Wait for Elasticsearch to become reachable
 for i in $(seq 1 60); do
     if curl -s -o /dev/null "http://127.0.0.1:9200"; then
         break
     fi
     sleep 5
 done
-
 sudo systemctl enable logstash --now
 sudo systemctl enable kibana --now
 
@@ -187,7 +180,7 @@ table inet filter {
         ip saddr 10.0.0.0/24 tcp dport 5601 accept
         ip6 saddr fd00:10::/64 tcp dport 5601 accept
 
-        # Logstash beats input from the LAN (Filebeat on every server)
+        # Logstash beats input from the LAN 
         ip saddr 10.0.0.0/24 tcp dport 5044 accept
         ip6 saddr fd00:10::/64 tcp dport 5044 accept
     }
