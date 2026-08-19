@@ -106,9 +106,12 @@ EOT
 sudo dnf install --enablerepo=elasticsearch elasticsearch logstash kibana -y
 
 # Elasticsearch single node, local-only
-sudo tee -a /etc/elasticsearch/elasticsearch.yml > /dev/null <<EOT
+sudo tee /etc/elasticsearch/elasticsearch.yml > /dev/null <<EOT
+path.data: /var/lib/elasticsearch
+path.logs: /var/log/elasticsearch
 cluster.name: lab-logs
 node.name: logs
+http.host: 127.0.0.1
 network.host: 127.0.0.1
 transport.host: 127.0.0.1
 http.port: 9200
