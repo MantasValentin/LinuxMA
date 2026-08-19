@@ -1,0 +1,6 @@
+---
+node_exporter_version: "1.8.2"
+node_exporter_port: 9100
+node_exporter_user: node_exporter
+prometheus_scrape_host_v4: 10.0.0.31
+prometheus_scrape_host_v6: "fd00:10::31"

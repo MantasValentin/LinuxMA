@@ -1,0 +1,6 @@
+---
+- name: Ship logs from every monitored host to the ELK stack
+  hosts: monitored
+  become: true
+  roles:
+    - filebeat

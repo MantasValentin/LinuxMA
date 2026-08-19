@@ -1,0 +1,13 @@
+[Unit]
+Description=Prometheus Node Exporter
+After=network.target
+
+[Service]
+User={{ node_exporter_user }}
+Group={{ node_exporter_user }}
+ExecStart=/usr/local/bin/node_exporter \
+    --web.listen-address=0.0.0.0:{{ node_exporter_port }}
+Restart=on-failure
+
+[Install]
+WantedBy=multi-user.target

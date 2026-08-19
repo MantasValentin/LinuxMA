@@ -1,0 +1,12 @@
+---
+- name: Expose node metrics on every monitored host
+  hosts: monitored
+  become: true
+  roles:
+    - node_exporter
+
+- name: Refresh the Prometheus scrape target list
+  hosts: analytics_server
+  become: true
+  roles:
+    - prometheus_targets

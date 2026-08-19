@@ -1,0 +1,15 @@
+---
+# Where filebeat ships logs
+logstash_host: logs.lab.internal
+logstash_port: 5044
+
+# Which box is allowed to scrape node_exporter, and on what port
+prometheus_scrape_host_v4: 10.0.0.31
+prometheus_scrape_host_v6: "fd00:10::31"
+node_exporter_port: 9100
+node_exporter_user: node_exporter
+
+# Bump to upgrade - keep in sync with the pin in analytics_server.sh's
+# Prometheus install if you want the two to move together (they don't
+# have to, node_exporter and prometheus version independently).
+node_exporter_version: "1.8.2"

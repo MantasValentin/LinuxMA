@@ -1,0 +1,36 @@
+---
+# Same 8.x repo the logging_server.sh bootstrap script already trusts on
+# logs.lab.internal - safe to reuse verbatim here.
+- name: Import Elastic GPG key
+  ansible.builtin.rpm_key:
+    key: https://artifacts.elastic.co/GPG-KEY-elasticsearch
+    state: present
+
+- name: Add Elastic 8.x yum repo
+  ansible.builtin.yum_repository:
+    name: elastic-8.x
+    description: Elastic repository for 8.x packages
+    baseurl: https://artifacts.elastic.co/packages/8.x/yum
+    gpgcheck: true
+    gpgkey: https://artifacts.elastic.co/GPG-KEY-elasticsearch
+    enabled: true
+
+- name: Install filebeat
+  ansible.builtin.dnf:
+    name: filebeat
+    state: present
+
+- name: Deploy filebeat.yml
+  ansible.builtin.template:
+    src: filebeat.yml.j2
+    dest: /etc/filebeat/filebeat.yml
+    owner: root
+    group: root
+    mode: "0600"
+  notify: restart filebeat
+
+- name: Enable and start filebeat
+  ansible.builtin.systemd:
+    name: filebeat
+    enabled: true
+    state: started
