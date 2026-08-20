@@ -25,7 +25,7 @@ fi
 # Authenticate as admin
 echo "$IPA_ADMIN_PASSWORD" | kinit admin
 
-# 1. Hostgroup for every server ansible is allowed to manage
+# Hostgroup for every server ansible is allowed to manage
 if ! ipa hostgroup-show "$HOSTGROUP" &>/dev/null; then
     ipa hostgroup-add "$HOSTGROUP" --desc "All servers managed by Ansible"
 fi
@@ -45,7 +45,7 @@ ipa automember-add-condition "$HOSTGROUP" \
     --key=fqdn \
     --inclusive-regex='.*' &>/dev/null || true
 
-# 2. Dedicated automation user - key-only login, random unused password
+# Dedicated automation user - key-only login, random unused password
 if ! ipa user-show "$ANSIBLE_USER" &>/dev/null; then
     ipa user-add "$ANSIBLE_USER" \
         --first="Ansible" \
@@ -55,7 +55,7 @@ if ! ipa user-show "$ANSIBLE_USER" &>/dev/null; then
 fi
 ipa user-mod "$ANSIBLE_USER" --sshpubkey="$(cat "$SSH_PUBKEY_FILE")"
 
-# 3. Passwordless sudo, any command, as any user, on every managed host
+# Passwordless sudo, any command, as any user, on every managed host
 if ! ipa sudorule-show "$SUDORULE" &>/dev/null; then
     ipa sudorule-add "$SUDORULE" \
         --desc "Passwordless sudo for the ansible automation account" \
@@ -67,7 +67,7 @@ ipa sudorule-add-user "$SUDORULE" --users="$ANSIBLE_USER" &>/dev/null || true
 ipa sudorule-add-host "$SUDORULE" --hostgroups="$HOSTGROUP" &>/dev/null || true
 ipa sudorule-add-option "$SUDORULE" --sudooption='!authenticate' &>/dev/null || true
 
-# 4. Allow the ansible user to ssh in to every managed host
+# Allow the ansible user to ssh in to every managed host
 if ! ipa hbacrule-show "$HBACRULE" &>/dev/null; then
     ipa hbacrule-add "$HBACRULE" \
         --desc "Allow the ansible automation account to ssh to managed hosts"
