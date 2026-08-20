@@ -210,7 +210,7 @@ table inet filter {
 
         # For node exporter
         ip saddr 10.0.0.31 tcp dport 9100 accept
-        ip6 saddr fd00::31 tcp dport 9100 accept
+        ip6 saddr fd00:10::31 tcp dport 9100 accept
     }
 
     chain forward {

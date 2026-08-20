@@ -3,7 +3,7 @@ set -euo pipefail
 
 if [ "$#" -ne 2 ]; then
     echo "Usage: $0 <IPA_ADMIN_PASSWORD> <path-to-ansible-ssh-pubkey>"
-    echo "Example: bash $0 password1 /home/sysadmin/.ssh/ansible_ed25519.pub"
+    echo "Example: bash $0 password1 /root/.ssh/ansible_ed25519.pub"
     exit 1
 fi
 
@@ -18,7 +18,7 @@ ANSIBLE_USER=ansible
 if [ ! -f "$SSH_PUBKEY_FILE" ]; then
     echo "ERROR: $SSH_PUBKEY_FILE not found."
     echo "Generate one first, e.g. on the admin box:"
-    echo "  ssh-keygen -t ed25519 -f ~/.ssh/ansible_ed25519 -C ansible@lab.internal -N ''"
+    echo "  ssh-keygen -t ed25519 -f /root/.ssh/ansible_ed25519 -C ansible@lab.internal -N ''"
     exit 1
 fi
 

@@ -7,7 +7,3 @@
   ansible.builtin.systemd:
     name: node_exporter
     state: restarted
-
-- name: reload nftables
-  ansible.builtin.command: nft -f /etc/sysconfig/nftables.conf
-  changed_when: true

@@ -6,11 +6,23 @@
     shell: /sbin/nologin
     create_home: false
 
+- name: Check currently installed node_exporter version
+  ansible.builtin.command: /usr/local/bin/node_exporter --version
+  register: node_exporter_installed
+  changed_when: false
+  failed_when: false
+
+- name: Determine whether node_exporter needs to be (re)installed
+  ansible.builtin.set_fact:
+    node_exporter_needs_install: >-
+      {{ node_exporter_installed.rc != 0 or node_exporter_version not in (node_exporter_installed.stdout ~ node_exporter_installed.stderr) }}
+
 - name: Download node_exporter release
   ansible.builtin.get_url:
     url: "https://github.com/prometheus/node_exporter/releases/download/v{{ node_exporter_version }}/node_exporter-{{ node_exporter_version }}.linux-amd64.tar.gz"
     dest: "/tmp/node_exporter-{{ node_exporter_version }}.tar.gz"
     mode: "0644"
+  when: node_exporter_needs_install
 
 - name: Extract node_exporter
   ansible.builtin.unarchive:
@@ -18,6 +30,7 @@
     dest: /tmp
     remote_src: true
     creates: "/tmp/node_exporter-{{ node_exporter_version }}.linux-amd64/node_exporter"
+  when: node_exporter_needs_install
 
 - name: Install node_exporter binary
   ansible.builtin.copy:
@@ -27,6 +40,7 @@
     group: root
     mode: "0755"
     remote_src: true
+  when: node_exporter_needs_install
   notify: restart node_exporter
 
 - name: Clean up download artifacts
@@ -36,6 +50,7 @@
   loop:
     - "/tmp/node_exporter-{{ node_exporter_version }}.tar.gz"
     - "/tmp/node_exporter-{{ node_exporter_version }}.linux-amd64"
+  when: node_exporter_needs_install
 
 - name: Deploy node_exporter systemd unit
   ansible.builtin.template:
