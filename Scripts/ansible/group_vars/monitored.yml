@@ -9,7 +9,5 @@ prometheus_scrape_host_v6: "fd00:10::31"
 node_exporter_port: 9100
 node_exporter_user: node_exporter
 
-# Bump to upgrade - keep in sync with the pin in analytics_server.sh's
-# Prometheus install if you want the two to move together (they don't
-# have to, node_exporter and prometheus version independently).
-node_exporter_version: "1.8.2"
+# node_exporter version 
+node_exporter_version: "1.12.1"

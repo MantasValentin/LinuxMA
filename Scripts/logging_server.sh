@@ -79,12 +79,13 @@ name=Elasticsearch repository for 9.x packages
 baseurl=https://artifacts.elastic.co/packages/9.x/yum
 gpgcheck=1
 gpgkey=https://artifacts.elastic.co/GPG-KEY-elasticsearch
-enabled=0
+enabled=1
+autorefresh=1
 type=rpm-md
 EOT
 sudo tee /etc/yum.repos.d/logstash.repo > /dev/null <<EOT
 [logstash-9.x]
-name=Elastic repository for 9.x packages
+name=Logstash repository for 9.x packages
 baseurl=https://artifacts.elastic.co/packages/9.x/yum
 gpgcheck=1
 gpgkey=https://artifacts.elastic.co/GPG-KEY-elasticsearch
@@ -103,7 +104,7 @@ autorefresh=1
 type=rpm-md
 EOT
 
-sudo dnf install --enablerepo=elasticsearch elasticsearch logstash kibana -y
+sudo dnf install elasticsearch logstash kibana -y
 
 # Elasticsearch single node, local-only
 sudo tee /etc/elasticsearch/elasticsearch.yml > /dev/null <<EOT
@@ -206,6 +207,10 @@ table inet filter {
         # Logstash beats input from the LAN 
         ip saddr 10.0.0.0/24 tcp dport 5044 accept
         ip6 saddr fd00:10::/64 tcp dport 5044 accept
+
+        # For node exporter
+        ip saddr 10.0.0.31 tcp dport 9100 accept
+        ip6 saddr fd00::31 tcp dport 9100 accept
     }
 
     chain forward {

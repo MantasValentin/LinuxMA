@@ -140,6 +140,10 @@ table inet filter {
 
         # DHCPv6 requests from the LAN
         udp dport 547 accept
+
+        # For node exporter
+        ip saddr 10.0.0.31 tcp dport 9100 accept
+        ip6 saddr fd00::31 tcp dport 9100 accept
     }
 
     chain forward {

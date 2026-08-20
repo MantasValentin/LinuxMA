@@ -5,8 +5,6 @@ filebeat.inputs:
 output.logstash:
   hosts: ["{{ logstash_host }}:{{ logstash_port }}"]
 
-# Tags each event with the inventory group this host belongs to
-# (firewalls, dns, ipa, ...) so it's easy to filter in Kibana.
 fields:
   lab_role: "{{ group_names | difference(['monitored']) | first | default('unknown') }}"
 fields_under_root: true

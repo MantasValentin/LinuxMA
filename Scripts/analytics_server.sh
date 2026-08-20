@@ -205,6 +205,10 @@ table inet filter {
         # Prometheus UI has no auth of its own - management range only
         ip saddr 10.0.0.20-10.0.0.29 tcp dport 9090 accept
         ip6 saddr fd00:10::20-fd00:10::29 tcp dport 9090 accept
+    
+        # For node exporter
+        ip saddr 10.0.0.31 tcp dport 9100 accept
+        ip6 saddr fd00::31 tcp dport 9100 accept
     }
 
     chain forward {

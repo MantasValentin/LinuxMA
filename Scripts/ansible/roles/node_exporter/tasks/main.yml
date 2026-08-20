@@ -52,18 +52,3 @@
     enabled: true
     state: started
     daemon_reload: true
-
-# Assumes this host's nftables ruleset follows the same layout as
-# logging_server.sh / analytics_server.sh: a "chain input { ... }" block
-# followed by a "chain forward { ... }" block in /etc/sysconfig/nftables.conf.
-# If a given host type's bootstrap script doesn't follow that layout,
-# this insertbefore anchor needs adjusting for that host.
-- name: Allow analytics server to scrape node_exporter
-  ansible.builtin.blockinfile:
-    path: /etc/sysconfig/nftables.conf
-    marker: "        # {mark} ANSIBLE MANAGED BLOCK - node_exporter"
-    insertbefore: "^    chain forward"
-    block: |
-                ip saddr {{ prometheus_scrape_host_v4 }} tcp dport {{ node_exporter_port }} accept
-                ip6 saddr {{ prometheus_scrape_host_v6 }} tcp dport {{ node_exporter_port }} accept
-  notify: reload nftables

@@ -6,5 +6,3 @@
     owner: prometheus
     group: prometheus
     mode: "0644"
-  # Prometheus's file_sd_configs has refresh_interval: 30s in
-  # prometheus.yml, so it picks this up on its own - no restart needed.

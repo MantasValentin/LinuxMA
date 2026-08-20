@@ -188,6 +188,10 @@ table inet filter {
         # SSH only from the management range and LAN NIC
         iifname "$NIC_I" ip saddr 10.0.0.20-10.0.0.29 tcp dport 22 ct state new accept
         iifname "$NIC_I" ip6 saddr fd00:10::20-fd00:10::29 tcp dport 22 ct state new accept
+
+        # For node exporter
+        ip saddr 10.0.0.31 tcp dport 9100 accept
+        ip6 saddr fd00::31 tcp dport 9100 accept
     }
 
     chain forward {

@@ -90,6 +90,10 @@ table inet filter {
         # SSH only from the management range 10.0.0.20-29 / fd00:10::20-29
         ip saddr 10.0.0.20-10.0.0.29 tcp dport 22 accept
         ip6 saddr fd00:10::20-fd00:10::29 tcp dport 22 accept
+
+        # For node exporter
+        ip saddr 10.0.0.31 tcp dport 9100 accept
+        ip6 saddr fd00::31 tcp dport 9100 accept
     }
 
     chain forward {

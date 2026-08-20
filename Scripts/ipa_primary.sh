@@ -166,6 +166,10 @@ table inet filter {
         # Connection between IPA servers
         ip saddr 10.0.0.0/24 tcp dport 8888 accept
         ip6 saddr fd00:10::/64 tcp dport 8888 accept
+
+        # For node exporter
+        ip saddr 10.0.0.31 tcp dport 9100 accept
+        ip6 saddr fd00::31 tcp dport 9100 accept
     }
 
     chain forward {
