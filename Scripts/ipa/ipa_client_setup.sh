@@ -3,13 +3,7 @@ set -euo pipefail
 
 # Rocky Linux 10.2
 
-if [ "$#" -ne 1 ]; then
-    echo "Usage: $0 <IPA_ADMIN_PASSWORD>"
-    echo "Example: bash ipa_client_setup.sh password1"
-    exit 1
-fi
-
-IPA_ADMIN_PASSWORD=$1
+read -r -s -p "IPA admin password: " IPA_ADMIN_PASSWORD
 
 HOSTNAME_SHORT=$(hostname -s)
 FQDN="${HOSTNAME_SHORT}.lab.internal"
@@ -53,3 +47,5 @@ sudo ipa-client-install \
     --mkhomedir \
     --force-join \
     --unattended
+
+unset IPA_ADMIN_PASSWORD
