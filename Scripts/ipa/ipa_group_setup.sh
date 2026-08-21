@@ -56,24 +56,24 @@ if ! ipa user-show ansible &>/dev/null; then
         --last="Automation" \
         --shell=/bin/bash \
         --random
+    # Expire random password immediately
+    ipa user-mod ansible --setattr=krbPasswordExpiration=19700101000000Z
 fi
 
-# Expire random password immediately
-ipa user-mod ansible --setattr=krbPasswordExpiration=19700101000000Z
 
 if ! ipa sudorule-show ansible-nopasswd-all &>/dev/null; then
     ipa sudorule-add ansible-nopasswd-all \
         --desc="Passwordless sudo for the ansible automation account (root only)" \
         --cmdcat=all
+    ipa sudorule-add-user ansible-nopasswd-all --users=ansible || true
+    ipa sudorule-add-host ansible-nopasswd-all --hostgroups=ansible-automation || true
+    ipa sudorule-add-option ansible-nopasswd-all --sudooption='!authenticate' || true
 fi
-ipa sudorule-add-user ansible-nopasswd-all --users=ansible || true
-ipa sudorule-add-host ansible-nopasswd-all --hostgroups=ansible-automation || true
-ipa sudorule-add-option ansible-nopasswd-all --sudooption='!authenticate' || true
 
 if ! ipa hbacrule-show ansible-ssh-access &>/dev/null; then
     ipa hbacrule-add ansible-ssh-access \
         --desc="Allow the ansible automation account to ssh to managed hosts"
+    ipa hbacrule-add-user ansible-ssh-access --users=ansible || true
+    ipa hbacrule-add-host ansible-ssh-access --hostgroups=ansible-automation || true
+    ipa hbacrule-add-service ansible-ssh-access --hbacsvcs=sshd || true
 fi
-ipa hbacrule-add-user ansible-ssh-access --users=ansible || true
-ipa hbacrule-add-host ansible-ssh-access --hostgroups=ansible-automation || true
-ipa hbacrule-add-service ansible-ssh-access --hbacsvcs=sshd || true
