@@ -107,6 +107,7 @@ configure_ipa_replica() {
             --setup-ca \
             --principal=admin \
             --admin-password="$IPA_ADMIN_PASSWORD" \
+            --skip-mem-check \
             --unattended
     fi
 
