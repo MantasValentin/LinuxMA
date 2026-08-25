@@ -3,7 +3,7 @@ set -euo pipefail
 
 # Rocky Linux 10.2
 
-read -r -s -p "IPA admin password: " IPA_ADMIN_PASSWORD
+read -r -s -p $'IPA admin password:\n' IPA_ADMIN_PASSWORD
 
 HOSTNAME_SHORT=$(hostname -s)
 FQDN="${HOSTNAME_SHORT}.lab.internal"

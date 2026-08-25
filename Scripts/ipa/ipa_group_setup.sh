@@ -1,7 +1,7 @@
 #!/bin/bash
 set -euo pipefail
 
-read -r -s -p "IPA admin password: " IPA_ADMIN_PASSWORD
+read -r -s -p $'IPA admin password:\n' IPA_ADMIN_PASSWORD
 
 kinit admin <<< "$IPA_ADMIN_PASSWORD"
 unset IPA_ADMIN_PASSWORD

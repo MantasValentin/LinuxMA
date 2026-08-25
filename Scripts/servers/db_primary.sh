@@ -4,8 +4,8 @@ set -euo pipefail
 
 source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/lib/common.sh"
 
-read -r -s -p "Postgres superuser password: " PG_SUPERUSER_PASSWORD
-read -r -s -p "Postgres replication password: " PG_REPL_PASSWORD
+read -r -s -p $'Postgres superuser password:\n' PG_SUPERUSER_PASSWORD
+read -r -s -p $'Postgres replication password:\n' PG_REPL_PASSWORD
 
 FQDN=db1.lab.internal
 

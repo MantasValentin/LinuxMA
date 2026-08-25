@@ -4,7 +4,7 @@ set -euo pipefail
 
 source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/lib/common.sh"
 
-read -r -s -p "IPA admin password: " IPA_ADMIN_PASSWORD
+read -r -s -p $'IPA admin password:\n' IPA_ADMIN_PASSWORD
 
 FQDN=ipa2.lab.internal
 

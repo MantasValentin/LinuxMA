@@ -4,8 +4,8 @@ set -euo pipefail
 
 source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/lib/common.sh"
 
-read -r -s -p "IPA admin password: " IPA_ADMIN_PASSWORD
-read -r -s -p "IPA database password: " IPA_DM_PASSWORD
+read -r -s -p $'IPA admin password:\n' IPA_ADMIN_PASSWORD
+read -r -s -p $'IPA database password:\n' IPA_DM_PASSWORD
 
 FQDN=ipa1.lab.internal
 
@@ -106,6 +106,7 @@ configure_ipa_server() {
             --no-ntp \
             --idstart=100000 \
             --idmax=101000 \
+            --skip-mem-check \
             --unattended
     fi
 

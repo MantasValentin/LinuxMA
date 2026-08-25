@@ -23,7 +23,7 @@ fi
 
 PUBKEY_CONTENT="$(cat "$SSH_PUBKEY_FILE")"
 
-read -r -s -p "IPA admin password: " IPA_ADMIN_PASSWORD
+read -r -s -p $'IPA admin password:\n' IPA_ADMIN_PASSWORD
 
 kinit admin <<< "$IPA_ADMIN_PASSWORD"
 unset IPA_ADMIN_PASSWORD
