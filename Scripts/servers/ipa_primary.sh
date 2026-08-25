@@ -150,7 +150,13 @@ table inet filter {
         ip saddr 10.0.0.0/24 tcp dport { 389, 636 } accept
         ip6 saddr fd00:10::/64 tcp dport { 389, 636 } accept
 
-        # Web UI only from the management range 10.0.0.20-29 / fd00:10::20-29
+        # Web UI only from the management range 10.0.0.20-29 / fd00:10::20-29 and ipa servers
+        ip saddr 10.0.0.5/32 tcp dport { 80, 443 } accept
+        ip6 saddr fd00:10::5/128 tcp dport { 80, 443 } accept
+
+        ip saddr 10.0.0.6/32 tcp dport { 80, 443 } accept
+        ip6 saddr fd00:10::6/128 tcp dport { 80, 443 } accept
+
         ip saddr 10.0.0.20-10.0.0.29 tcp dport { 80, 443 } accept
         ip6 saddr fd00:10::20-fd00:10::29 tcp dport { 80, 443 } accept
 
@@ -187,9 +193,9 @@ main() {
     configure_packages
     configure_network
     configure_resolver
+    configure_firewall
     configure_chrony
     configure_ipa_server
-    configure_firewall
     configure_sshd
 }
 
