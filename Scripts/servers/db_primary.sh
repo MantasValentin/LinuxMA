@@ -92,7 +92,7 @@ configure_postgresql() {
         sudo /usr/pgsql-18/bin/postgresql-18-setup initdb
         sudo systemctl enable --now postgresql-18
     else
-        if sudo ! systemctl is-active --quiet postgresql-18; then
+        if ! sudo systemctl is-active --quiet postgresql-18; then
             sudo systemctl enable --now postgresql-18
         fi
     fi
