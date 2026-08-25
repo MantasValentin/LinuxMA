@@ -1,7 +1,10 @@
 #!/bin/bash
+# Rocky Linux 10.2
 set -euo pipefail
 
-# Rocky Linux 10.2
+source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/lib/common.sh"
+
+FQDN=firewall2.lab.internal
 
 # External (WAN) and internal (LAN) interfaces
 NIC_E=ens33
@@ -11,58 +14,51 @@ WAN_IP_V4=192.168.0.4
 WAN_VIP_V4=192.168.0.2
 WAN_GATEWAY_V4=192.168.0.1
 WAN_PREFIX_V4=24
-MASTER_FIREWALL_WAN_IP_V4=192.168.0.3
+PEER_WAN_IP_V4=192.168.0.3
 
 LAN_IP_V4=10.0.0.3
 LAN_VIP_V4=10.0.0.1
 LAN_PREFIX_V4=24
-MASTER_FIREWALL_LAN_IP_V4=10.0.0.2
+PEER_LAN_IP_V4=10.0.0.2
 
 WAN_IP_V6=fd00:192:168::4
 WAN_VIP_V6=fd00:192:168::2
 WAN_GATEWAY_V6=fd00:192:168::1
 WAN_PREFIX_V6=64
-MASTER_FIREWALL_WAN_IP_V6=fd00:192:168::3
+PEER_WAN_IP_V6=fd00:192:168::3
 
 LAN_IP_V6=fd00:10::3
 LAN_VIP_V6=fd00:10::1
 LAN_PREFIX_V6=64
 LAN_PREFIX_NET_V6=fd00:10
-MASTER_FIREWALL_LAN_IP_V6=fd00:10::2
+PEER_LAN_IP_V6=fd00:10::2
 
-# Shared secret
+# Shared secret for keepalived VRRP auth
 # identical between firewall_primary.sh and firewall_secondary.sh
 VRRP_AUTH_PASS="VRRP_Secret"
 
-# Set hostname
-sudo hostnamectl set-hostname "firewall2.lab.internal"
+configure_hostname() {
+    ensure_hostname $FQDN
+}
 
-# Update and upgrade
-sudo dnf upgrade -y
+configure_packages() {
+    sudo dnf upgrade -y
+    ensure_packages epel-release
+    ensure_packages openssh-server git nftables keepalived conntrack-tools radvd systemd-networkd
+}
 
-# epel-release      - conntrackd and radvd ship from EPEL on Rocky
-# openssh-server    - remote management
-# git               - pulling config from your repo
-# nftables          - firewall, NAT, DNAT
-# keepalived        - for configuring a virtual IP
-# conntrack-tools   - syncs the connection-tracking table for both firewalls
-# radvd             - ipv6 RA
-# systemd-networkd  - networking
-sudo dnf install -y epel-release
-sudo dnf install -y openssh-server git nftables keepalived conntrack-tools radvd systemd-networkd
-
-# Enable IP forwarding
-sudo tee /etc/sysctl.d/99-firewall.conf > /dev/null <<EOT
+configure_sysctl() {
+    write_file_if_changed /etc/sysctl.d/99-firewall.conf 0644 root:root <<EOT
 net.ipv4.ip_forward=1
 net.ipv6.conf.all.forwarding=1
 
 # Mitigates ip spoofing by checking if the source ip comes from the correct NIC
-# Prevents WAN connections from pretending to be comming from LAN admin servers 
+# Prevents WAN connections from pretending to be coming from LAN admin servers
 net.ipv4.conf.all.rp_filter=1
 net.ipv4.conf.default.rp_filter=1
 
 # Don't answer/accept ICMP redirects
-# Prevents externall changes to the firewalls routing table
+# Prevents external changes to the firewall's routing table
 net.ipv4.conf.all.accept_redirects=0
 net.ipv6.conf.all.accept_redirects=0
 # Prevents the firewall from revealing the LAN topology
@@ -74,23 +70,36 @@ net.ipv6.conf.all.accept_source_route=0
 # Ignore RA, use static addresses
 net.ipv6.conf.all.accept_ra=0
 EOT
-sudo sysctl --system
+    sudo sysctl --system > /dev/null
+}
 
-# replace NetworkManager with systemd-networkd
-sudo systemctl disable --now NetworkManager
-sudo systemctl mask NetworkManager
-sudo systemctl unmask systemd-networkd
-sudo systemctl enable systemd-networkd --now
+configure_network() {
+    local is_using_networkmanager
+    is_using_networkmanager=$(switch_to_systemd_networkd)
+    switch_to_nftables
 
-# replace firewalld with nftables
-sudo systemctl disable --now firewalld
-sudo systemctl enable nftables --now
+    # radvd is started by keepalived's notify script
+    sudo systemctl disable --now radvd 2>/dev/null || true
 
-# radvd is started by keepalived's notify script on transition to MASTER, not at boot
-sudo systemctl disable --now radvd
+    if [ "$is_using_networkmanager" = "1" ]; then
+        sudo ip addr flush dev "$NIC_E" 2>/dev/null || true
+        sudo ip addr flush dev "$NIC_I" 2>/dev/null || true
+        sudo ip route flush dev "$NIC_E" 2>/dev/null || true
+        sudo ip route flush dev "$NIC_I" 2>/dev/null || true
+    fi
 
-# WAN interface
-sudo tee /etc/systemd/network/10-wan.network > /dev/null <<EOT
+    local wan_changed=0 lan_changed=0
+    write_file_if_changed /etc/systemd/network/10-lan.network 0644 root:root <<EOT && lan_changed=1
+[Match]
+Name=$NIC_I
+
+[Network]
+Address=$LAN_IP_V4/$LAN_PREFIX_V4
+Address=$LAN_IP_V6/$LAN_PREFIX_V6
+IPv6AcceptRA=no
+EOT
+
+    write_file_if_changed /etc/systemd/network/20-wan.network 0644 root:root <<EOT && wan_changed=1
 [Match]
 Name=$NIC_E
 
@@ -102,33 +111,23 @@ Gateway=$WAN_GATEWAY_V6
 IPv6AcceptRA=no
 EOT
 
-# LAN interface
-sudo tee /etc/systemd/network/20-lan.network > /dev/null <<EOT
-[Match]
-Name=$NIC_I
+    if [ "$wan_changed" -eq 1 ] || [ "$lan_changed" -eq 1 ]; then
+        sudo networkctl reload
+        sudo networkctl reconfigure "$NIC_E" "$NIC_I"
+    fi
+}
 
-[Network]
-Address=$LAN_IP_V4/$LAN_PREFIX_V4
-Address=$LAN_IP_V6/$LAN_PREFIX_V6
-IPv6AcceptRA=no
-EOT
-
-# Restart networking
-sudo systemctl restart systemd-networkd
-sudo networkctl reload
-sudo networkctl reconfigure "$NIC_E" "$NIC_I"
-
-# DNS resolution goes to internal resolvers
-sudo rm -f /etc/resolv.conf
-sudo tee /etc/resolv.conf > /dev/null <<EOT
+configure_resolver() {
+    apply_resolv_conf <<EOT
 nameserver 10.0.0.53
 nameserver 10.0.0.54
 nameserver fd00:10::53
 nameserver fd00:10::54
 EOT
+}
 
-# Firewall Config
-sudo tee /etc/sysconfig/nftables.conf > /dev/null <<EOT
+configure_firewall() {
+    apply_nftables_ruleset <<EOT
 #!/usr/sbin/nft -f
 
 flush ruleset
@@ -177,9 +176,10 @@ table inet filter {
         meta l4proto ipv6-icmp accept
 
         # VRRP is used by keepalived
-        meta l4proto vrrp iifname "$NIC_I" accept
-        meta l4proto vrrp iifname "$NIC_E" ip saddr $MASTER_FIREWALL_WAN_IP_V4 accept
-        meta l4proto vrrp iifname "$NIC_E" ip6 saddr $MASTER_FIREWALL_WAN_IP_V6 accept
+        meta l4proto vrrp iifname "$NIC_I" ip saddr $PEER_LAN_IP_V4 accept
+        meta l4proto vrrp iifname "$NIC_I" ip6 saddr $PEER_LAN_IP_V6 accept
+        meta l4proto vrrp iifname "$NIC_E" ip saddr $PEER_WAN_IP_V4 accept
+        meta l4proto vrrp iifname "$NIC_E" ip6 saddr $PEER_WAN_IP_V6 accept
 
         # For conntrackd to sync both firewalls
         iifname "$NIC_I" tcp dport 3780 accept
@@ -189,9 +189,9 @@ table inet filter {
         iifname "$NIC_I" ip saddr 10.0.0.20-10.0.0.29 tcp dport 22 ct state new accept
         iifname "$NIC_I" ip6 saddr fd00:10::20-fd00:10::29 tcp dport 22 ct state new accept
 
-        # For node exporter
-        ip saddr 10.0.0.0/24 tcp dport 9100 accept
-        ip6 saddr fd00:10::/64 tcp dport 9100 accept
+        # For node exporter from analytics server 10.0.0.31 / fd00:10::31
+        ip saddr 10.0.0.31/24 tcp dport 9100 accept
+        ip6 saddr fd00:10::31/64 tcp dport 9100 accept
     }
 
     chain forward {
@@ -205,7 +205,7 @@ table inet filter {
 
         # ICMPv4
         ip protocol icmp accept
-        
+
         # ICMPv6
         meta l4proto ipv6-icmp accept
 
@@ -226,13 +226,10 @@ table inet filter {
     }
 }
 EOT
+}
 
-sudo nft -f /etc/sysconfig/nftables.conf
-sudo nft list ruleset
-sudo systemctl restart nftables
-
-# Attach the firewall to a virtual IP
-sudo tee /etc/keepalived/keepalived.conf > /dev/null <<EOT
+configure_keepalived() {
+    if write_file_if_changed /etc/keepalived/keepalived.conf 0644 root:root <<EOT
 global_defs {
     router_id FIREWALL_2
     script_user root
@@ -370,18 +367,32 @@ vrrp_instance VI_4 {
     }
 }
 EOT
+    then
+        sudo systemctl restart keepalived
+    else
+        if ! sudo systemctl is-active --quiet keepalived; then
+            sudo systemctl enable --now keepalived
+        fi
+    fi
+    sudo systemctl enable keepalived
+}
 
-# Configure conntrackd to sync the connection-tracking table for both firewalls
-sudo modprobe nf_conntrack
-sudo modprobe nf_conntrack_netlink
-echo "nf_conntrack"         | sudo tee -a /etc/modules-load.d/conntrack.conf > /dev/null
-echo "nf_conntrack_netlink" | sudo tee -a /etc/modules-load.d/conntrack.conf > /dev/null
+configure_conntrackd() {
+    sudo modprobe nf_conntrack
+    sudo modprobe nf_conntrack_netlink
+    write_file_if_changed /etc/modules-load.d/conntrack.conf 0644 root:root <<EOT
+nf_conntrack
+nf_conntrack_netlink
+EOT
 
-sudo sysctl -w net.netfilter.nf_conntrack_max=1048576
-echo "net.netfilter.nf_conntrack_max = 1048576" | sudo tee -a /etc/sysctl.d/99-conntrack.conf > /dev/null
-sudo sysctl -p /etc/sysctl.d/99-conntrack.conf
+    sudo sysctl -w net.netfilter.nf_conntrack_max=1048576 > /dev/null
+    write_file_if_changed /etc/sysctl.d/99-conntrack.conf 0644 root:root <<EOT
+net.netfilter.nf_conntrack_max = 1048576
+EOT
+    sudo sysctl -p /etc/sysctl.d/99-conntrack.conf > /dev/null
 
-sudo tee /etc/conntrackd/conntrackd.conf > /dev/null <<EOT
+    local changed=0
+    write_file_if_changed /etc/conntrackd/conntrackd.conf 0644 root:root <<EOT && changed=1
 General {
     HashSize 131072
     HashLimit 1048576
@@ -418,7 +429,7 @@ Sync {
         Port 3780
         Interface $NIC_I
         IPv4_address $LAN_IP_V4
-        IPv4_Destination_Address $MASTER_FIREWALL_LAN_IP_V4
+        IPv4_Destination_Address $PEER_LAN_IP_V4
         SndSocketBuffer 1249280
         RcvSocketBuffer 1249280
         Checksum on
@@ -428,7 +439,7 @@ Sync {
         Port 3780
         Interface $NIC_I
         IPv6_address $LAN_IP_V6
-        IPv6_Destination_Address $MASTER_FIREWALL_LAN_IP_V6
+        IPv6_Destination_Address $PEER_LAN_IP_V6
         SndSocketBuffer 1249280
         RcvSocketBuffer 1249280
         Checksum on
@@ -436,7 +447,7 @@ Sync {
 }
 EOT
 
-sudo tee /etc/keepalived/notify.sh > /dev/null <<'EOT'
+    write_file_if_changed /etc/keepalived/notify.sh 0755 root:root <<'EOT'
 #!/bin/sh
 CONNTRACKD_BIN=/usr/sbin/conntrackd
 CONNTRACKD_CONFIG=/etc/conntrackd/conntrackd.conf
@@ -460,28 +471,34 @@ case "$1" in
         ;;
 esac
 EOT
+    sudo restorecon -v /etc/keepalived/notify.sh > /dev/null
 
-sudo chmod +x /etc/keepalived/notify.sh
-sudo chown root:root /etc/keepalived/notify.sh
-sudo restorecon -v /etc/keepalived/notify.sh
-
-# Make sure conntrackd is up before keepalived
-sudo mkdir -p /etc/systemd/system/keepalived.service.d
-sudo tee /etc/systemd/system/keepalived.service.d/override.conf > /dev/null <<EOT
+    sudo mkdir -p /etc/systemd/system/keepalived.service.d
+    write_file_if_changed /etc/systemd/system/keepalived.service.d/override.conf 0644 root:root <<EOT || true
 [Unit]
 After=conntrackd.service
 Wants=conntrackd.service
 EOT
 
-# Configure conntrackd service priority
-sudo mkdir -p /etc/systemd/system/conntrackd.service.d
-sudo tee /etc/systemd/system/conntrackd.service.d/priority.conf > /dev/null <<EOF
+    sudo mkdir -p /etc/systemd/system/conntrackd.service.d
+    write_file_if_changed /etc/systemd/system/conntrackd.service.d/priority.conf 0644 root:root <<EOT || true
 [Service]
 Nice=-10
-EOF
+EOT
 
-# Setup RA for IPv6
-sudo tee /etc/radvd.conf > /dev/null <<EOT
+    sudo systemctl daemon-reload
+
+    if ! sudo systemctl is-active --quiet conntrackd; then
+        sudo systemctl enable --now conntrackd
+    elif [ "$changed" -eq 1 ]; then
+        sudo systemctl restart conntrackd
+    fi
+    sudo systemctl enable conntrackd
+}
+
+configure_radvd() {
+    # keepalived's notify.sh starts/stops radvd on MASTER/BACKUP transitions
+    write_file_if_changed /etc/radvd.conf 0644 root:root <<EOT
 interface $NIC_I {
     AdvSendAdvert on;
     AdvManagedFlag on;
@@ -495,8 +512,24 @@ interface $NIC_I {
     };
 };
 EOT
+    sudo systemctl disable --now radvd 2>/dev/null || true
+}
 
-sudo systemctl enable sshd --now
-sudo systemctl daemon-reload
-sudo systemctl enable --now conntrackd
-sudo systemctl enable --now keepalived
+configure_sshd() {
+    sudo systemctl enable sshd --now
+}
+
+main() {
+    configure_hostname
+    configure_packages
+    configure_sysctl
+    configure_network
+    configure_resolver
+    configure_firewall
+    configure_conntrackd
+    configure_radvd
+    configure_keepalived
+    configure_sshd
+}
+
+dispatch main "$@"

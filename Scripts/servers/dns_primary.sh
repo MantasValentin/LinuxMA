@@ -1,10 +1,13 @@
 #!/bin/bash
+# Rocky Linux 10.2
 set -euo pipefail
 
-# Rocky Linux 10.2
+source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/lib/common.sh"
 
-# Interface
+FQDN=dns1.lab.internal
+
 NIC=ens34
+
 LAN_IP_V4=10.0.0.7
 LAN_PREFIX_V4=24
 GATEWAY_V4=10.0.0.1
@@ -13,43 +16,35 @@ LAN_IP_V6=fd00:10::7
 LAN_PREFIX_V6=64
 GATEWAY_V6=fd00:10::1
 
-# Temporary bootstrap networking before pulling this script to run it
-# sudo ip link set "$NIC" up
-# sudo ip addr add 10.0.0.250/24 dev "$NIC"
-# sudo ip route add default via 10.0.0.1
-# echo "nameserver 1.1.1.1" | sudo tee /etc/resolv.conf > /dev/null
+ZONE_SERIAL=2026082501
 
-# Set hostname
-sudo hostnamectl set-hostname "dns1.lab.internal"
+# Temporary bootstrap networking before pulling this script to run it:
+#   sudo ip link set "$NIC" up
+#   sudo ip addr add 10.0.0.250/24 dev "$NIC"
+#   sudo ip route add default via 10.0.0.1
+#   echo "nameserver 1.1.1.1" | sudo tee /etc/resolv.conf > /dev/null
 
-# Update and upgrade
-sudo dnf upgrade -y
+configure_hostname() {
+    ensure_hostname $FQDN
+}
 
-# bind             - the DNS server itself
-# bind-utils       - dig / nslookup / named-checkconf / named-checkzone / tsig-keygen
-# nftables         - firewall
-# openssh-server   - remote management
-# git              - pulling config from your repo
-# systemd-networkd - networking
-sudo dnf install -y epel-release
-sudo dnf install -y bind bind-utils nftables openssh-server git systemd-networkd
+configure_packages() {
+    sudo dnf upgrade -y
+    ensure_packages epel-release
+    ensure_packages bind bind-utils nftables openssh-server git systemd-networkd
+}
 
-# Remove the temporary networking
-sudo ip addr flush dev "$NIC"
-sudo ip route flush dev "$NIC"
+configure_network() {
+    local is_using_networkmanager
+    is_using_networkmanager=$(switch_to_systemd_networkd)
+    switch_to_nftables
 
-# replace NetworkManager with systemd-networkd
-sudo systemctl disable --now NetworkManager
-sudo systemctl mask NetworkManager
-sudo systemctl unmask systemd-networkd
-sudo systemctl enable systemd-networkd --now
+    if [ "$is_using_networkmanager" = "1" ]; then
+        sudo ip addr flush dev "$NIC" 2>/dev/null || true
+        sudo ip route flush dev "$NIC" 2>/dev/null || true
+    fi
 
-# replace firewalld with nftables
-sudo systemctl disable --now firewalld
-sudo systemctl enable nftables --now
-
-# LAN interface
-sudo tee /etc/systemd/network/10-lan.network > /dev/null <<EOT
+    apply_network_file /etc/systemd/network/10-lan.network "$NIC" <<EOT
 [Match]
 Name=$NIC
 
@@ -60,37 +55,35 @@ Gateway=$GATEWAY_V4
 Gateway=$GATEWAY_V6
 IPv6AcceptRA=no
 EOT
+}
 
-# dns resolution goes to dns-rslv
-sudo rm -f /etc/resolv.conf
-sudo tee /etc/resolv.conf > /dev/null <<EOT
+configure_resolver() {
+    apply_resolv_conf <<EOT
 nameserver 10.0.0.53
 nameserver 10.0.0.54
 nameserver fd00:10::53
 nameserver fd00:10::54
 EOT
+}
 
-# Restart networking
-sudo systemctl restart systemd-networkd
-sudo networkctl reload
-sudo networkctl reconfigure "$NIC"
+configure_tsig_key() {
+    sudo mkdir -p /etc/named
+    if [ ! -s /etc/named/tsig-xfer.key ]; then
+        sudo tsig-keygen -a hmac-sha256 xfer-key | sudo tee /etc/named/tsig-xfer.key > /dev/null
+    fi
+    sudo chown root:named /etc/named/tsig-xfer.key
+    sudo chmod 640 /etc/named/tsig-xfer.key
+}
 
-# Use to generate a TSIG key for DNS authentication between primary and secondary dns servers
-sudo mkdir -p /etc/named
-sudo tsig-keygen -a hmac-sha256 xfer-key | sudo tee /etc/named/tsig-xfer.key
+configure_named_options() {
+    NAMED_CHANGED=0
 
-# Lock access to the key
-sudo chown root:named /etc/named/tsig-xfer.key
-sudo chmod 640 /etc/named/tsig-xfer.key
-
-# Top-level config just pulls in the split files below
-sudo tee /etc/named.conf > /dev/null <<EOT
+    write_file_if_changed /etc/named.conf 0644 root:named <<EOT && NAMED_CHANGED=1
 include "/etc/named/named.conf.options";
 include "/etc/named/named.conf.local";
 EOT
 
-# Deploy the config
-sudo tee /etc/named/named.conf.options > /dev/null <<EOT
+    write_file_if_changed /etc/named/named.conf.options 0644 root:named <<EOT && NAMED_CHANGED=1
 options {
     directory "/var/named";
     recursion no;
@@ -103,7 +96,7 @@ options {
 };
 EOT
 
-sudo tee /etc/named/named.conf.local > /dev/null <<EOT
+    write_file_if_changed /etc/named/named.conf.local 0644 root:named <<EOT && NAMED_CHANGED=1
 include "/etc/named/tsig-xfer.key";
 
 zone "lab.internal" {
@@ -138,11 +131,15 @@ server fd00:10::8 {
     keys { xfer-key; };
 };
 EOT
+}
 
-sudo tee /var/named/db.lab.internal > /dev/null <<'EOT'
-$TTL    3600
+configure_zones() {
+    ZONE_DATA_CHANGED=0
+
+    write_file_if_changed /var/named/db.lab.internal 0644 root:named <<EOT && ZONE_DATA_CHANGED=1
+\$TTL    3600
 @       IN      SOA     ns1.lab.internal. dns-admin.lab.internal. (
-                             2026080601    ; Serial YYYYMMDDnn
+                             $ZONE_SERIAL  ; Serial YYYYMMDDnn
                                    3600    ; Refresh (1 hour)
                                     900    ; Retry (15 min)
                                  604800    ; Expire (1 week)
@@ -152,9 +149,11 @@ $TTL    3600
 @       IN      NS      ns1.lab.internal.
 @       IN      NS      ns2.lab.internal.
 
-; 10.0.0.1 / fd00:10::1 is reserved for a virtual IP
+; 10.0.0.1 / fd00:10::1 is reserved for the firewall virtual IP
 
-; Firewall
+; Firewall, firewall VIP is 1
+firewall     IN      A       10.0.0.1
+firewall     IN      AAAA    fd00:10::1
 firewall1    IN      A       10.0.0.2
 firewall1    IN      AAAA    fd00:10::2
 firewall2    IN      A       10.0.0.3
@@ -199,9 +198,17 @@ dns2        IN      AAAA    fd00:10::8
 ns2         IN      A       10.0.0.8
 ns2         IN      AAAA    fd00:10::8
 
+; HashiCorp Vault, vault VIP is 9
+vault       IN      A       10.0.0.9
+vault       IN      AAAA    fd00:10::9
+vault1      IN      A       10.0.0.10
+vault1      IN      AAAA    fd00:10::10
+vault2      IN      A       10.0.0.11
+vault2      IN      AAAA    fd00:10::11
+
 ; Management
-admin       IN      A       10.0.0.20
-admin       IN      AAAA    fd00:10::20
+admin1       IN      A       10.0.0.20
+admin1       IN      AAAA    fd00:10::20
 
 ; Logs, analytics
 logs        IN      A       10.0.0.30
@@ -209,11 +216,15 @@ logs        IN      AAAA    fd00:10::30
 analytics   IN      A       10.0.0.31
 analytics   IN      AAAA    fd00:10::31
 
-; Database
-db1          IN      A       10.0.0.40
-db1          IN      AAAA    fd00:10::40
-db2          IN      A       10.0.0.41
-db2          IN      AAAA    fd00:10::41
+; Database, db VIP is 40
+db           IN      A       10.0.0.40
+db           IN      AAAA    fd00:10::40
+db1          IN      A       10.0.0.41
+db1          IN      AAAA    fd00:10::41
+db2          IN      A       10.0.0.42
+db2          IN      AAAA    fd00:10::42
+db-witness   IN      A       10.0.0.43
+db-witness   IN      AAAA    fd00:10::43
 
 ; Recursive DNS resolver
 dns-rslv1    IN      A       10.0.0.53
@@ -230,10 +241,10 @@ app1         IN      A       10.0.0.70
 app1         IN      AAAA    fd00:10::70
 EOT
 
-sudo tee /var/named/db.10.0.0 > /dev/null <<'EOT'
-$TTL    3600
+    write_file_if_changed /var/named/db.10.0.0 0644 root:named <<EOT && ZONE_DATA_CHANGED=1
+\$TTL    3600
 @       IN      SOA     ns1.lab.internal. dns-admin.lab.internal. (
-                             2026080601    ; Serial YYYYMMDDnn
+                             $ZONE_SERIAL    ; Serial YYYYMMDDnn
                                    3600    ; Refresh (1 hour)
                                     900    ; Retry (15 min)
                                  604800    ; Expire (1 week)
@@ -243,7 +254,8 @@ $TTL    3600
 @       IN      NS      ns1.lab.internal.
 @       IN      NS      ns2.lab.internal.
 
-; Firewall
+; Firewall, firewall VIP is 1
+1       IN      PTR     firewall.lab.internal.
 2       IN      PTR     firewall1.lab.internal.
 3       IN      PTR     firewall2.lab.internal.
 
@@ -260,16 +272,23 @@ $TTL    3600
 8      IN      PTR     dns2.lab.internal.
 8      IN      PTR     ns2.lab.internal.
 
+; HashiCorp Vault, vault VIP is 9
+9       IN      PTR     vault.lab.internal.
+10      IN      PTR     vault1.lab.internal.
+11      IN      PTR     vault2.lab.internal.
+
 ; Management
-20      IN      PTR     admin.lab.internal.
+20      IN      PTR     admin1.lab.internal.
 
 ; Logs, analytics
 30      IN      PTR     logs.lab.internal.
 31      IN      PTR     analytics.lab.internal.
 
-; Database
-40      IN      PTR     db1.lab.internal.
-41      IN      PTR     db2.lab.internal.
+; Database, db VIP is 40
+40      IN      PTR     db.lab.internal.
+41      IN      PTR     db1.lab.internal.
+42      IN      PTR     db2.lab.internal.
+43      IN      PTR     db-witness.lab.internal.
 
 ; Recursive DNS resolver
 53      IN      PTR     dns-rslv1.lab.internal.
@@ -282,10 +301,10 @@ $TTL    3600
 70      IN      PTR     app1.lab.internal.
 EOT
 
-sudo tee /var/named/db.fd00.10 > /dev/null <<'EOT'
-$TTL    3600
+    write_file_if_changed /var/named/db.fd00.10 0644 root:named <<EOT && ZONE_DATA_CHANGED=1
+\$TTL    3600
 @       IN      SOA     ns1.lab.internal. dns-admin.lab.internal. (
-                             2026080601    ; Serial YYYYMMDDnn
+                             $ZONE_SERIAL    ; Serial YYYYMMDDnn
                                    3600    ; Refresh (1 hour)
                                     900    ; Retry (15 min)
                                  604800    ; Expire (1 week)
@@ -294,7 +313,8 @@ $TTL    3600
 @       IN      NS      ns1.lab.internal.
 @       IN      NS      ns2.lab.internal.
 
-; Firewall
+; Firewall, firewall VIP is 1
+1.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0     IN PTR firewall.lab.internal.
 2.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0     IN PTR firewall1.lab.internal.
 3.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0     IN PTR firewall2.lab.internal.
 
@@ -311,16 +331,23 @@ $TTL    3600
 8.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0     IN PTR dns2.lab.internal.
 8.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0     IN PTR ns2.lab.internal.
 
+; HashiCorp Vault, vault VIP is 9
+9.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0     IN PTR vault.lab.internal.
+0.1.0.0.0.0.0.0.0.0.0.0.0.0.0.0     IN PTR vault1.lab.internal.
+1.1.0.0.0.0.0.0.0.0.0.0.0.0.0.0     IN PTR vault2.lab.internal.
+
 ; Management
-0.2.0.0.0.0.0.0.0.0.0.0.0.0.0.0     IN PTR admin.lab.internal.
+0.2.0.0.0.0.0.0.0.0.0.0.0.0.0.0     IN PTR admin1.lab.internal.
 
 ; Logs, analytics
 0.3.0.0.0.0.0.0.0.0.0.0.0.0.0.0     IN PTR logs.lab.internal.
 1.3.0.0.0.0.0.0.0.0.0.0.0.0.0.0     IN PTR analytics.lab.internal.
 
-; Database
-0.4.0.0.0.0.0.0.0.0.0.0.0.0.0.0     IN PTR db1.lab.internal.
-1.4.0.0.0.0.0.0.0.0.0.0.0.0.0.0     IN PTR db2.lab.internal.
+; Database, db VIP is 40
+0.4.0.0.0.0.0.0.0.0.0.0.0.0.0.0     IN PTR db.lab.internal.
+1.4.0.0.0.0.0.0.0.0.0.0.0.0.0.0     IN PTR db1.lab.internal.
+2.4.0.0.0.0.0.0.0.0.0.0.0.0.0.0     IN PTR db2.lab.internal.
+3.4.0.0.0.0.0.0.0.0.0.0.0.0.0.0     IN PTR db-witness.lab.internal.
 
 ; Recursive DNS resolver
 3.5.0.0.0.0.0.0.0.0.0.0.0.0.0.0     IN PTR dns-rslv1.lab.internal.
@@ -333,24 +360,30 @@ $TTL    3600
 0.7.0.0.0.0.0.0.0.0.0.0.0.0.0.0     IN PTR app1.lab.internal.
 EOT
 
-sudo chown root:named /var/named/db.lab.internal /var/named/db.10.0.0 /var/named/db.fd00.10
-sudo chmod 644 /var/named/db.lab.internal /var/named/db.10.0.0 /var/named/db.fd00.10
+    sudo restorecon -Rv /etc/named /var/named
 
+    sudo named-checkconf
+    sudo named-checkzone lab.internal /var/named/db.lab.internal
+    sudo named-checkzone 0.0.10.in-addr.arpa /var/named/db.10.0.0
+    sudo named-checkzone 0.0.0.0.0.0.0.0.0.1.0.0.0.0.d.f.ip6.arpa /var/named/db.fd00.10
+}
 
-# Reset SELinux labels
-sudo restorecon -Rv /etc/named /var/named
+configure_named_service() {
+    configure_named_options
+    configure_zones
 
-# Validate syntax and zones before restarting
-sudo named-checkconf
-sudo named-checkzone lab.internal /var/named/db.lab.internal
-sudo named-checkzone 0.0.10.in-addr.arpa /var/named/db.10.0.0
-sudo named-checkzone 0.0.0.0.0.0.0.0.0.1.0.0.0.0.d.f.ip6.arpa /var/named/db.fd00.10
+    if ! sudo systemctl is-active --quiet named; then
+        sudo systemctl enable named --now
+    elif [ "${NAMED_CHANGED:-0}" -eq 1 ]; then
+        sudo systemctl restart named
+    elif [ "${ZONE_DATA_CHANGED:-0}" -eq 1 ]; then
+        sudo rndc reload
+    fi
+    sudo systemctl enable named
+}
 
-sudo systemctl enable named
-sudo systemctl restart named
-
-# Firewall Config
-sudo tee /etc/sysconfig/nftables.conf > /dev/null <<EOT
+configure_firewall() {
+    apply_nftables_ruleset <<EOT
 #!/usr/sbin/nft -f
 
 flush ruleset
@@ -381,9 +414,9 @@ table inet filter {
         ip6 saddr fd00:10::/64 udp dport 53 accept
         ip6 saddr fd00:10::/64 tcp dport 53 accept
 
-        # For node exporter
-        ip saddr 10.0.0.0/24 tcp dport 9100 accept
-        ip6 saddr fd00:10::/64 tcp dport 9100 accept
+        # For node exporter from analytics server 10.0.0.31 / fd00:10::31
+        ip saddr 10.0.0.31/24 tcp dport 9100 accept
+        ip6 saddr fd00:10::31/64 tcp dport 9100 accept
     }
 
     chain forward {
@@ -395,10 +428,21 @@ table inet filter {
     }
 }
 EOT
+}
 
-sudo nft -f /etc/sysconfig/nftables.conf
-sudo nft list ruleset
-sudo systemctl restart nftables
+configure_sshd() {
+    sudo systemctl enable sshd --now
+}
 
-sudo systemctl enable sshd --now
-sudo systemctl daemon-reload
+main() {
+    configure_hostname
+    configure_packages
+    configure_network
+    configure_resolver
+    configure_tsig_key
+    configure_named_service
+    configure_firewall
+    configure_sshd
+}
+
+dispatch main "$@"

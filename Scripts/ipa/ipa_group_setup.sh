@@ -6,6 +6,8 @@ read -r -s -p "IPA admin password: " IPA_ADMIN_PASSWORD
 kinit admin <<< "$IPA_ADMIN_PASSWORD"
 unset IPA_ADMIN_PASSWORD
 
+ipa hbacrule-disable allow_all
+
 ipa hostgroup-add dns-servers           --desc="Authoritative DNS servers"          2>/dev/null || true
 ipa hostgroup-add dns-rslv-servers      --desc="Recursive DNS resolver servers"     2>/dev/null || true
 ipa hostgroup-add dhcp-servers          --desc="DHCP servers"                       2>/dev/null || true
@@ -26,7 +28,7 @@ ipa hostgroup-add-member dns-rslv-servers --hosts=dns-rslv1.lab.internal,dns-rsl
 ipa hostgroup-add-member dhcp-servers --hosts=dhcp.lab.internal || true
 ipa hostgroup-add-member firewall-servers --hosts=firewall1.lab.internal,firewall2.lab.internal || true
 ipa hostgroup-add-member ipa-servers --hosts=ipa1.lab.internal,ipa2.lab.internal || true
-ipa hostgroup-add-member admin-workstations --hosts=admin.lab.internal || true
+ipa hostgroup-add-member admin-workstations --hosts=admin1.lab.internal || true
 ipa hostgroup-add-member logging-servers --hosts=logs.lab.internal || true
 ipa hostgroup-add-member analytics-servers --hosts=analytics.lab.internal || true
 
