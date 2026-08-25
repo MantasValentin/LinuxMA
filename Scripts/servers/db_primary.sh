@@ -88,7 +88,7 @@ EOT
 }
 
 configure_postgresql() {
-    if [ ! /var/lib/pgsql/18/data ]; then
+    if [ ! -f /var/lib/pgsql/18/data/postgresql.conf ]; then
         sudo /usr/pgsql-18/bin/postgresql-18-setup initdb
         sudo systemctl enable --now postgresql-18
     else
