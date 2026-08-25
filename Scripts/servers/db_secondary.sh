@@ -87,6 +87,17 @@ nameserver fd00:10::54
 EOT
 }
 
+configure_postgresql() {
+    if [ ! /var/lib/pgsql/18/data ]; then
+        sudo /usr/pgsql-18/bin/postgresql-18-setup initdb
+        sudo systemctl enable --now postgresql-18
+    else
+        if sudo ! systemctl is-active --quiet postgresql-18; then
+            sudo systemctl enable --now postgresql-18
+        fi
+    fi
+}
+
 configure_etcd() {
     if [ ! -x /opt/etcd/etcd ]; then
         download_once \
@@ -444,6 +455,7 @@ main() {
     configure_packages
     configure_network
     configure_resolver
+    configure_postgresql
     configure_etcd
     configure_patroni
     configure_haproxy
