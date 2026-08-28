@@ -4,7 +4,7 @@ set -euo pipefail
 
 source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/lib/common.sh"
 
-FQDN=dns1.lab.internal
+FQDN=dns-1.lab.internal
 
 NIC=ens34
 
@@ -146,69 +146,69 @@ configure_zones() {
                                    3600 )  ; Negative cache TTL (1 hour)
 
 ; Server records
-@       IN      NS      ns1.lab.internal.
-@       IN      NS      ns2.lab.internal.
+@       IN      NS      ns-1.lab.internal.
+@       IN      NS      ns-2.lab.internal.
 
 ; 10.0.0.1 / fd00:10::1 is reserved for the firewall virtual IP
 
 ; Firewall, firewall VIP is 1
 firewall     IN      A       10.0.0.1
 firewall     IN      AAAA    fd00:10::1
-firewall1    IN      A       10.0.0.2
-firewall1    IN      AAAA    fd00:10::2
-firewall2    IN      A       10.0.0.3
-firewall2    IN      AAAA    fd00:10::3
+firewall-1    IN      A       10.0.0.2
+firewall-1    IN      AAAA    fd00:10::2
+firewall-2    IN      A       10.0.0.3
+firewall-2    IN      AAAA    fd00:10::3
 
 ; DHCP
 dhcp      IN      A       10.0.0.4
 dhcp      IN      AAAA    fd00:10::4
 
 ; IPA
-ipa1        IN      A       10.0.0.5
-ipa1        IN      AAAA    fd00:10::5
-ipa2        IN      A       10.0.0.6
-ipa2        IN      AAAA    fd00:10::6
+ipa-1        IN      A       10.0.0.5
+ipa-1        IN      AAAA    fd00:10::5
+ipa-2        IN      A       10.0.0.6
+ipa-2        IN      AAAA    fd00:10::6
 ipa-ca      IN      A       10.0.0.5
 ipa-ca      IN      A       10.0.0.6
 ipa-ca      IN      AAAA    fd00:10::5
 ipa-ca      IN      AAAA    fd00:10::6
 
 ; Kerberos/LDAP service discovery
-_kerberos-master._tcp.lab.internal. IN SRV 0 100 88  ipa1.lab.internal.
-_kerberos-master._udp.lab.internal. IN SRV 0 100 88  ipa1.lab.internal.
-_kerberos._tcp.lab.internal.        IN SRV 0 100 88  ipa1.lab.internal.
-_kerberos._tcp.lab.internal.        IN SRV 0 100 88  ipa2.lab.internal.
-_kerberos._udp.lab.internal.        IN SRV 0 100 88  ipa1.lab.internal.
-_kerberos._udp.lab.internal.        IN SRV 0 100 88  ipa2.lab.internal.
-_kpasswd._tcp.lab.internal.         IN SRV 0 100 464 ipa1.lab.internal.
-_kpasswd._tcp.lab.internal.         IN SRV 0 100 464 ipa2.lab.internal.
-_kpasswd._udp.lab.internal.         IN SRV 0 100 464 ipa1.lab.internal.
-_kpasswd._udp.lab.internal.         IN SRV 0 100 464 ipa2.lab.internal.
-_ldap._tcp.lab.internal.            IN SRV 0 100 389 ipa1.lab.internal.
-_ldap._tcp.lab.internal.            IN SRV 0 100 389 ipa2.lab.internal.
+_kerberos-master._tcp.lab.internal. IN SRV 0 100 88  ipa-1.lab.internal.
+_kerberos-master._udp.lab.internal. IN SRV 0 100 88  ipa-1.lab.internal.
+_kerberos._tcp.lab.internal.        IN SRV 0 100 88  ipa-1.lab.internal.
+_kerberos._tcp.lab.internal.        IN SRV 0 100 88  ipa-2.lab.internal.
+_kerberos._udp.lab.internal.        IN SRV 0 100 88  ipa-1.lab.internal.
+_kerberos._udp.lab.internal.        IN SRV 0 100 88  ipa-2.lab.internal.
+_kpasswd._tcp.lab.internal.         IN SRV 0 100 464 ipa-1.lab.internal.
+_kpasswd._tcp.lab.internal.         IN SRV 0 100 464 ipa-2.lab.internal.
+_kpasswd._udp.lab.internal.         IN SRV 0 100 464 ipa-1.lab.internal.
+_kpasswd._udp.lab.internal.         IN SRV 0 100 464 ipa-2.lab.internal.
+_ldap._tcp.lab.internal.            IN SRV 0 100 389 ipa-1.lab.internal.
+_ldap._tcp.lab.internal.            IN SRV 0 100 389 ipa-2.lab.internal.
 _kerberos.lab.internal.             IN TXT "LAB.INTERNAL"
 
 ; Authoritative DNS
-dns1        IN      A       10.0.0.7
-dns1        IN      AAAA    fd00:10::7
-ns1         IN      A       10.0.0.7
-ns1         IN      AAAA    fd00:10::7
-dns2        IN      A       10.0.0.8
-dns2        IN      AAAA    fd00:10::8
-ns2         IN      A       10.0.0.8
-ns2         IN      AAAA    fd00:10::8
+dns-1        IN      A       10.0.0.7
+dns-1        IN      AAAA    fd00:10::7
+ns-1         IN      A       10.0.0.7
+ns-1         IN      AAAA    fd00:10::7
+dns-2        IN      A       10.0.0.8
+dns-2        IN      AAAA    fd00:10::8
+ns-2         IN      A       10.0.0.8
+ns-2         IN      AAAA    fd00:10::8
 
 ; HashiCorp Vault, vault VIP is 9
 vault       IN      A       10.0.0.9
 vault       IN      AAAA    fd00:10::9
-vault1      IN      A       10.0.0.10
-vault1      IN      AAAA    fd00:10::10
-vault2      IN      A       10.0.0.11
-vault2      IN      AAAA    fd00:10::11
+vault-1      IN      A       10.0.0.10
+vault-1      IN      AAAA    fd00:10::10
+vault-2      IN      A       10.0.0.11
+vault-2      IN      AAAA    fd00:10::11
 
 ; Management
-admin1       IN      A       10.0.0.20
-admin1       IN      AAAA    fd00:10::20
+admin-1       IN      A       10.0.0.20
+admin-1       IN      AAAA    fd00:10::20
 
 ; Logs, analytics
 logs        IN      A       10.0.0.30
@@ -219,66 +219,70 @@ analytics   IN      AAAA    fd00:10::31
 ; Database, db VIP is 40
 db           IN      A       10.0.0.40
 db           IN      AAAA    fd00:10::40
-db1          IN      A       10.0.0.41
-db1          IN      AAAA    fd00:10::41
-db2          IN      A       10.0.0.42
-db2          IN      AAAA    fd00:10::42
+db-1          IN      A       10.0.0.41
+db-1          IN      AAAA    fd00:10::41
+db-2          IN      A       10.0.0.42
+db-2          IN      AAAA    fd00:10::42
 db-witness   IN      A       10.0.0.43
 db-witness   IN      AAAA    fd00:10::43
+db-backup-1   IN      A       10.0.0.44
+db-backup-1   IN      AAAA    fd00:10::44
+db-backup-2   IN      A       10.0.0.45
+db-backup-2   IN      AAAA    fd00:10::45
 
 ; Recursive DNS resolver
-dns-rslv1    IN      A       10.0.0.53
-dns-rslv1    IN      AAAA    fd00:10::53
-dns-rslv2    IN      A       10.0.0.54
-dns-rslv2    IN      AAAA    fd00:10::54
+dns-rslv-1    IN      A       10.0.0.53
+dns-rslv-1    IN      AAAA    fd00:10::53
+dns-rslv-2    IN      A       10.0.0.54
+dns-rslv-2    IN      AAAA    fd00:10::54
 
 ; Reverse Proxy
 proxy       IN      A       10.0.0.60
 proxy       IN      AAAA    fd00:10::60
 
 ; Apps
-app1         IN      A       10.0.0.70
-app1         IN      AAAA    fd00:10::70
+app-1         IN      A       10.0.0.70
+app-1         IN      AAAA    fd00:10::70
 EOT
 
     write_file_if_changed /var/named/db.10.0.0 0644 root:named <<EOT && ZONE_DATA_CHANGED=1
 \$TTL    3600
 @       IN      SOA     ns1.lab.internal. dns-admin.lab.internal. (
-                             $ZONE_SERIAL    ; Serial YYYYMMDDnn
+                             $ZONE_SERIAL  ; Serial YYYYMMDDnn
                                    3600    ; Refresh (1 hour)
                                     900    ; Retry (15 min)
                                  604800    ; Expire (1 week)
                                    3600 )  ; Negative cache TTL (1 hour)
 
 ; Server records
-@       IN      NS      ns1.lab.internal.
-@       IN      NS      ns2.lab.internal.
+@       IN      NS      ns-1.lab.internal.
+@       IN      NS      ns-2.lab.internal.
 
 ; Firewall, firewall VIP is 1
 1       IN      PTR     firewall.lab.internal.
-2       IN      PTR     firewall1.lab.internal.
-3       IN      PTR     firewall2.lab.internal.
+2       IN      PTR     firewall-1.lab.internal.
+3       IN      PTR     firewall-2.lab.internal.
 
 ; DHCP
 4       IN      PTR     dhcp.lab.internal.
 
 ; IPA
-5       IN      PTR     ipa1.lab.internal.
-6       IN      PTR     ipa2.lab.internal.
+5       IN      PTR     ipa-1.lab.internal.
+6       IN      PTR     ipa-2.lab.internal.
 
 ; Authoritative DNS
-7      IN      PTR     dns1.lab.internal.
-7      IN      PTR     ns1.lab.internal.
-8      IN      PTR     dns2.lab.internal.
-8      IN      PTR     ns2.lab.internal.
+7      IN      PTR     dns-1.lab.internal.
+7      IN      PTR     ns-1.lab.internal.
+8      IN      PTR     dns-2.lab.internal.
+8      IN      PTR     ns-2.lab.internal.
 
 ; HashiCorp Vault, vault VIP is 9
 9       IN      PTR     vault.lab.internal.
-10      IN      PTR     vault1.lab.internal.
-11      IN      PTR     vault2.lab.internal.
+10      IN      PTR     vault-1.lab.internal.
+11      IN      PTR     vault-2.lab.internal.
 
 ; Management
-20      IN      PTR     admin1.lab.internal.
+20      IN      PTR     admin-1.lab.internal.
 
 ; Logs, analytics
 30      IN      PTR     logs.lab.internal.
@@ -286,19 +290,21 @@ EOT
 
 ; Database, db VIP is 40
 40      IN      PTR     db.lab.internal.
-41      IN      PTR     db1.lab.internal.
-42      IN      PTR     db2.lab.internal.
+41      IN      PTR     db-1.lab.internal.
+42      IN      PTR     db-2.lab.internal.
 43      IN      PTR     db-witness.lab.internal.
+44      IN      PTR     db-backup-1.lab.internal.
+45      IN      PTR     db-backup-2.lab.internal.
 
 ; Recursive DNS resolver
-53      IN      PTR     dns-rslv1.lab.internal.
-54      IN      PTR     dns-rslv2.lab.internal.
+53      IN      PTR     dns-rslv-1.lab.internal.
+54      IN      PTR     dns-rslv-2.lab.internal.
 
 ; Reverse Proxy
 60      IN      PTR     proxy.lab.internal.
 
 ; Apps
-70      IN      PTR     app1.lab.internal.
+70      IN      PTR     app-1.lab.internal.
 EOT
 
     write_file_if_changed /var/named/db.fd00.10 0644 root:named <<EOT && ZONE_DATA_CHANGED=1
@@ -315,29 +321,29 @@ EOT
 
 ; Firewall, firewall VIP is 1
 1.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0     IN PTR firewall.lab.internal.
-2.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0     IN PTR firewall1.lab.internal.
-3.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0     IN PTR firewall2.lab.internal.
+2.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0     IN PTR firewall-1.lab.internal.
+3.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0     IN PTR firewall-2.lab.internal.
 
 ; DHCP
 4.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0     IN PTR dhcp.lab.internal.
 
 ; IPA
-5.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0     IN PTR ipa1.lab.internal.
-6.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0     IN PTR ipa2.lab.internal.
+5.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0     IN PTR ipa-1.lab.internal.
+6.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0     IN PTR ipa-2.lab.internal.
 
 ; Authoritative DNS
-7.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0     IN PTR dns1.lab.internal.
-7.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0     IN PTR ns1.lab.internal.
-8.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0     IN PTR dns2.lab.internal.
-8.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0     IN PTR ns2.lab.internal.
+7.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0     IN PTR dns-1.lab.internal.
+7.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0     IN PTR ns-1.lab.internal.
+8.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0     IN PTR dns-2.lab.internal.
+8.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0     IN PTR ns-2.lab.internal.
 
 ; HashiCorp Vault, vault VIP is 9
 9.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0     IN PTR vault.lab.internal.
-0.1.0.0.0.0.0.0.0.0.0.0.0.0.0.0     IN PTR vault1.lab.internal.
-1.1.0.0.0.0.0.0.0.0.0.0.0.0.0.0     IN PTR vault2.lab.internal.
+0.1.0.0.0.0.0.0.0.0.0.0.0.0.0.0     IN PTR vault-1.lab.internal.
+1.1.0.0.0.0.0.0.0.0.0.0.0.0.0.0     IN PTR vault-2.lab.internal.
 
 ; Management
-0.2.0.0.0.0.0.0.0.0.0.0.0.0.0.0     IN PTR admin1.lab.internal.
+0.2.0.0.0.0.0.0.0.0.0.0.0.0.0.0     IN PTR admin-1.lab.internal.
 
 ; Logs, analytics
 0.3.0.0.0.0.0.0.0.0.0.0.0.0.0.0     IN PTR logs.lab.internal.
@@ -345,19 +351,21 @@ EOT
 
 ; Database, db VIP is 40
 0.4.0.0.0.0.0.0.0.0.0.0.0.0.0.0     IN PTR db.lab.internal.
-1.4.0.0.0.0.0.0.0.0.0.0.0.0.0.0     IN PTR db1.lab.internal.
-2.4.0.0.0.0.0.0.0.0.0.0.0.0.0.0     IN PTR db2.lab.internal.
+1.4.0.0.0.0.0.0.0.0.0.0.0.0.0.0     IN PTR db-1.lab.internal.
+2.4.0.0.0.0.0.0.0.0.0.0.0.0.0.0     IN PTR db-2.lab.internal.
 3.4.0.0.0.0.0.0.0.0.0.0.0.0.0.0     IN PTR db-witness.lab.internal.
+4.4.0.0.0.0.0.0.0.0.0.0.0.0.0.0     IN PTR db-backup-1.lab.internal.
+5.4.0.0.0.0.0.0.0.0.0.0.0.0.0.0     IN PTR db-backup-2.lab.internal.
 
 ; Recursive DNS resolver
-3.5.0.0.0.0.0.0.0.0.0.0.0.0.0.0     IN PTR dns-rslv1.lab.internal.
-4.5.0.0.0.0.0.0.0.0.0.0.0.0.0.0     IN PTR dns-rslv2.lab.internal.
+3.5.0.0.0.0.0.0.0.0.0.0.0.0.0.0     IN PTR dns-rslv-1.lab.internal.
+4.5.0.0.0.0.0.0.0.0.0.0.0.0.0.0     IN PTR dns-rslv-2.lab.internal.
 
 ; Reverse Proxy
 0.6.0.0.0.0.0.0.0.0.0.0.0.0.0.0     IN PTR proxy.lab.internal.
 
 ; Apps
-0.7.0.0.0.0.0.0.0.0.0.0.0.0.0.0     IN PTR app1.lab.internal.
+0.7.0.0.0.0.0.0.0.0.0.0.0.0.0.0     IN PTR app-1.lab.internal.
 EOT
 
     sudo restorecon -Rv /etc/named /var/named

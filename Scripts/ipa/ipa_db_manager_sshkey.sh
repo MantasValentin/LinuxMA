@@ -2,8 +2,8 @@
 set -euo pipefail
 
 usage() {
-    echo "Usage: $0 <path-to-ansible-ssh-pubkey>"
-    echo "Example: $0 /root/.ssh/ansible_ed25519.pub"
+    echo "Usage: $0 <path-to-db-manager-ssh-pubkey>"
+    echo "Example: $0 /root/.ssh/db_manager_ed25519.pub"
     exit 1
 }
 
@@ -12,12 +12,12 @@ if [ "$#" -ne 1 ]; then
 fi
 
 SSH_PUBKEY_FILE=$1
-USER=ansible
+USER=db-manager
 
 if [ ! -f "$SSH_PUBKEY_FILE" ]; then
     echo "ERROR: $SSH_PUBKEY_FILE not found."
     echo "Generate one first, e.g.:"
-    echo "  ssh-keygen -t ed25519 -f /root/.ssh/ansible_ed25519 -C ansible@lab.internal -N ''"
+    echo "  ssh-keygen -t ed25519 -f /root/.ssh/db_manager_ed25519 -C db-manager@lab.internal -N ''"
     exit 1
 fi
 

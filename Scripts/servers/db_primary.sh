@@ -6,8 +6,9 @@ source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/lib/common.sh"
 
 read -r -s -p $'Postgres superuser password:\n' PG_SUPERUSER_PASSWORD
 read -r -s -p $'Postgres replication password:\n' PG_REPL_PASSWORD
+read -r -s -p $'IPA admin password:\n' IPA_ADMIN_PASSWORD
 
-FQDN=db1.lab.internal
+FQDN=db-1.lab.internal
 
 NIC=ens34
 
@@ -33,13 +34,23 @@ PG_VIP_PREFIX_V6=64
 VRRP_AUTH_PASS="PGVRRP_Secret"
 
 # Patroni/etcd identity
-NODE_NAME=db1
+NODE_NAME=db-1
 ETCD_NAME=etcd1
 ETCD_VERSION=v3.7.0
-ETCD_CLUSTER="etcd1=http://10.0.0.41:2380,etcd2=http://10.0.0.42:2380,etcd3=http://10.0.0.43:2380"
+ETCD_CLUSTER="etcd1=https://10.0.0.41:2380,etcd2=https://10.0.0.42:2380,etcd3=https://10.0.0.43:2380"
 
 # PostgreSQL version
 PG_VERSION=18
+
+# TLS material issued by the IPA CA
+TLS_CERT=/etc/pki/tls/certs/db-node.pem
+TLS_KEY=/etc/pki/tls/private/db-node.key
+TLS_CA=/etc/ipa/ca.crt
+TLS_HAPROXY_PEM=/etc/pki/tls/certs/db-node-haproxy.pem
+
+# pgBackRest backup is written to two independent repos for redundancy.
+BACKUP_REPO1_FQDN=db-backup-1.lab.internal
+BACKUP_REPO2_FQDN=db-backup-2.lab.internal
 
 configure_hostname() {
     ensure_hostname $FQDN
@@ -48,11 +59,11 @@ configure_hostname() {
 configure_packages() {
     sudo dnf upgrade -y
     ensure_packages epel-release
-    ensure_packages openssh-server git nftables keepalived haproxy systemd-networkd python3-pip
+    ensure_packages openssh-server git nftables keepalived haproxy systemd-networkd python3-pip ipa-client chrony acl
 
     sudo dnf -qy module disable postgresql || true
     ensure_repo_rpm pgdg-redhat-repo "https://download.postgresql.org/pub/repos/yum/reporpms/EL-10-x86_64/pgdg-redhat-repo-latest.noarch.rpm"
-    ensure_packages "postgresql${PG_VERSION}-server"
+    ensure_packages "postgresql${PG_VERSION}-server" pgbackrest
 }
 
 configure_network() {
@@ -87,6 +98,90 @@ nameserver fd00:10::54
 EOT
 }
 
+configure_chrony() {
+    if write_file_if_changed /etc/chrony.conf 0644 root:root <<EOT
+server ipa1.lab.internal iburst prefer
+server ipa2.lab.internal iburst
+
+makestep 1.0 3
+driftfile /var/lib/chrony/drift
+rtcsync
+EOT
+    then
+        sudo systemctl enable chronyd --now
+        sudo systemctl restart chronyd
+    else
+        sudo systemctl enable chronyd --now
+    fi
+}
+
+# ipa-client-install fails outright if already joined
+configure_ipa_join() {
+    if [ ! -f /etc/ipa/default.conf ]; then
+        sudo ipa-client-install \
+            --domain=lab.internal \
+            --realm=LAB.INTERNAL \
+            --server=ipa1.lab.internal \
+            --server=ipa2.lab.internal \
+            --hostname="$FQDN" \
+            --principal=admin \
+            --password="$IPA_ADMIN_PASSWORD" \
+            --mkhomedir \
+            --force-join \
+            --unattended
+    fi
+
+    kinit admin <<< "$IPA_ADMIN_PASSWORD"
+    ipa service-add "etcd/$FQDN" --force || true
+    kdestroy
+
+    unset IPA_ADMIN_PASSWORD
+}
+
+configure_tls_cert() {
+    sudo mkdir -p /etc/pki/tls/private /etc/pki/tls/certs
+    sudo groupadd -f pgcerts
+
+    write_file_if_changed /usr/local/bin/db-tls-renew-hook.sh 0755 root:root <<'EOT' || true
+#!/bin/bash
+set -uo pipefail
+if [ -f /etc/pki/tls/certs/db-node.pem ] && [ -f /etc/pki/tls/private/db-node.key ]; then
+    cat /etc/pki/tls/certs/db-node.pem /etc/pki/tls/private/db-node.key > /etc/pki/tls/certs/db-node-haproxy.pem
+    chown root:pgcerts /etc/pki/tls/certs/db-node-haproxy.pem
+    chmod 640 /etc/pki/tls/certs/db-node-haproxy.pem
+fi
+systemctl try-restart etcd.service 2>/dev/null || true
+systemctl try-restart patroni.service 2>/dev/null || true
+systemctl try-restart haproxy.service 2>/dev/null || true
+EOT
+
+    if ! sudo getcert list -f "$TLS_CERT" &>/dev/null; then
+        sudo ipa-getcert request \
+            -f "$TLS_CERT" \
+            -k "$TLS_KEY" \
+            -N "CN=$FQDN" \
+            -D "$FQDN" \
+            -K "etcd/$FQDN" \
+            -U id-kp-serverAuth \
+            -U id-kp-clientAuth \
+            -T id-kp-serverAuth \
+            -T id-kp-clientAuth \
+            -g 4096 \
+            -C "/usr/local/bin/db-tls-renew-hook.sh" \
+            -w
+    fi
+
+    sudo chown root:pgcerts "$TLS_CERT" "$TLS_KEY"
+    sudo chmod 644 "$TLS_CERT"
+    sudo chmod 640 "$TLS_KEY"
+
+    if [ ! -f "$TLS_HAPROXY_PEM" ] || [ "$TLS_KEY" -nt "$TLS_HAPROXY_PEM" ]; then
+        sudo bash -c "cat '$TLS_CERT' '$TLS_KEY' > '$TLS_HAPROXY_PEM'"
+        sudo chown root:pgcerts "$TLS_HAPROXY_PEM"
+        sudo chmod 640 "$TLS_HAPROXY_PEM"
+    fi
+}
+
 configure_etcd() {
     if [ ! -x /opt/etcd/etcd ]; then
         download_once \
@@ -99,6 +194,7 @@ configure_etcd() {
     fi
 
     sudo useradd --system --no-create-home --shell /sbin/nologin etcd 2>/dev/null || true
+    sudo usermod -aG pgcerts etcd
     sudo mkdir -p /var/lib/etcd
     sudo chown etcd:etcd /var/lib/etcd
 
@@ -107,18 +203,28 @@ configure_etcd() {
     write_file_if_changed /etc/etcd/etcd.conf 0640 root:etcd <<EOT && changed=1
 ETCD_NAME=$ETCD_NAME
 ETCD_DATA_DIR=/var/lib/etcd
-ETCD_LISTEN_PEER_URLS=http://$LAN_IP_V4:2380
-ETCD_LISTEN_CLIENT_URLS=http://$LAN_IP_V4:2379,http://127.0.0.1:2379
-ETCD_INITIAL_ADVERTISE_PEER_URLS=http://$LAN_IP_V4:2380
-ETCD_ADVERTISE_CLIENT_URLS=http://$LAN_IP_V4:2379
+ETCD_LISTEN_PEER_URLS=https://$LAN_IP_V4:2380
+ETCD_LISTEN_CLIENT_URLS=https://$LAN_IP_V4:2379
+ETCD_INITIAL_ADVERTISE_PEER_URLS=https://$LAN_IP_V4:2380
+ETCD_ADVERTISE_CLIENT_URLS=https://$LAN_IP_V4:2379
 ETCD_INITIAL_CLUSTER=$ETCD_CLUSTER
 ETCD_INITIAL_CLUSTER_STATE=new
 ETCD_INITIAL_CLUSTER_TOKEN=pg-etcd-cluster
+
+ETCD_CERT_FILE=$TLS_CERT
+ETCD_KEY_FILE=$TLS_KEY
+ETCD_TRUSTED_CA_FILE=$TLS_CA
+ETCD_CLIENT_CERT_AUTH=true
+
+ETCD_PEER_CERT_FILE=$TLS_CERT
+ETCD_PEER_KEY_FILE=$TLS_KEY
+ETCD_PEER_TRUSTED_CA_FILE=$TLS_CA
+ETCD_PEER_CLIENT_CERT_AUTH=true
 EOT
 
     write_file_if_changed /etc/systemd/system/etcd.service 0644 root:root <<EOT && changed=1
 [Unit]
-Description=etcd (Patroni DCS)
+Description=etcd
 After=network-online.target
 Wants=network-online.target
 
@@ -152,6 +258,7 @@ configure_patroni() {
     fi
 
     sudo useradd --system --shell /sbin/nologin postgres 2>/dev/null || true
+    sudo usermod -aG pgcerts postgres
     sudo mkdir -p "/var/lib/pgsql/${PG_VERSION}/data" /var/log/patroni
     sudo chown -R postgres:postgres /var/lib/pgsql /var/log/patroni
 
@@ -165,16 +272,27 @@ name: $NODE_NAME
 restapi:
     listen: 0.0.0.0:8008
     connect_address: $LAN_IP_V4:8008
+    certfile: $TLS_CERT
+    keyfile: $TLS_KEY
+    cafile: $TLS_CA
 
 etcd3:
     hosts: 10.0.0.41:2379,10.0.0.42:2379,10.0.0.43:2379
+    protocol: https
+    cacert: $TLS_CA
+    cert: $TLS_CERT
+    key: $TLS_KEY
 
 bootstrap:
     dcs:
+        synchronous_mode: true
+        synchronous_mode_strict: false
+        synchronous_node_count: 1
+        maximum_lag_on_syncnode: 1048576 
+        maximum_lag_on_failover: 1048576
         ttl: 30
         loop_wait: 10
         retry_timeout: 10
-        maximum_lag_on_failover: 1048576
         postgresql:
             use_pg_rewind: true
             parameters:
@@ -220,7 +338,7 @@ EOT
 
     write_file_if_changed /etc/systemd/system/patroni.service 0644 root:root <<EOT && changed=1
 [Unit]
-Description=Patroni (PostgreSQL HA)
+Description=Patroni
 After=etcd.service network-online.target
 Wants=network-online.target
 
@@ -247,7 +365,74 @@ EOT
     sudo systemctl enable patroni
 }
 
+configure_pgbackrest() {
+    sudo mkdir -p /var/log/pgbackrest
+    sudo chown postgres:postgres /var/log/pgbackrest
+
+    write_file_if_changed /etc/pgbackrest/pgbackrest.conf 0640 postgres:postgres <<EOT
+[global]
+repo1-host=$BACKUP_REPO1_FQDN
+repo1-host-type=tls
+repo1-host-ca-file=$TLS_CA
+repo1-host-cert-file=$TLS_CERT
+repo1-host-key-file=$TLS_KEY
+
+repo2-host=$BACKUP_REPO2_FQDN
+repo2-host-type=tls
+repo2-host-ca-file=$TLS_CA
+repo2-host-cert-file=$TLS_CERT
+repo2-host-key-file=$TLS_KEY
+
+log-path=/var/log/pgbackrest
+process-max=2
+compress-type=zst
+
+[pg-cluster]
+pg1-path=/var/lib/pgsql/${PG_VERSION}/data
+pg1-port=5432
+EOT
+
+    # Patroni invokes archive_command when it is the primary.
+    if sudo systemctl is-active --quiet patroni; then
+        sudo -u postgres /opt/patroni/venv/bin/patronictl -c /etc/patroni/patroni.yml \
+            edit-config --pg archive_mode=on \
+            --pg archive_command='pgbackrest --stanza=pg-cluster --config=/etc/pgbackrest/pgbackrest.conf archive-push %p' \
+            --pg restore_command='pgbackrest --stanza=pg-cluster --config=/etc/pgbackrest/pgbackrest.conf archive-get %f "%p"' \
+            -y || true
+    fi
+
+    write_file_if_changed /usr/local/bin/pg_backup_if_primary.sh 0755 root:root <<EOT
+#!/bin/bash
+# Runs a pgBackRest backup only if node is currently the Patroni leader
+set -euo pipefail
+TYPE=\$1   # full or diff
+
+if ! curl -fsk --cacert $TLS_CA https://127.0.0.1:8008/primary > /dev/null 2>&1; then
+    logger "pg_backup: not primary, skipping \${TYPE} backup"
+    exit 0
+fi
+
+logger "pg_backup: starting \${TYPE} backup"
+sudo -u postgres pgbackrest --stanza=pg-cluster --config=/etc/pgbackrest/pgbackrest.conf \
+    --type="\${TYPE}" backup
+logger "pg_backup: \${TYPE} backup complete"
+EOT
+
+    write_file_if_changed /etc/cron.d/pgbackrest 0644 root:root <<'EOT'
+0 1 * * 0 root /usr/local/bin/pg_backup_if_primary.sh full   >> /var/log/pgbackrest/cron.log 2>&1
+0 1 * * 1-6 root /usr/local/bin/pg_backup_if_primary.sh diff >> /var/log/pgbackrest/cron.log 2>&1
+EOT
+
+    if sudo systemctl is-active --quiet patroni && \
+       curl -fsk --cacert "$TLS_CA" https://127.0.0.1:8008/primary >/dev/null 2>&1; then
+        sudo -u postgres pgbackrest --stanza=pg-cluster --config=/etc/pgbackrest/pgbackrest.conf \
+            stanza-create 2>/dev/null || true
+    fi
+}
+
 configure_haproxy() {
+    sudo usermod -aG pgcerts haproxy 2>/dev/null || true
+
     if write_file_if_changed /etc/haproxy/haproxy.cfg 0644 root:root <<EOT
 global
     maxconn 500
@@ -264,7 +449,7 @@ defaults
 
 listen stats
     mode http
-    bind *:7000
+    bind *:7000 ssl crt $TLS_HAPROXY_PEM
     stats enable
     stats uri /
     stats refresh 5s
@@ -274,7 +459,7 @@ listen pg_write
     bind *:5000
     option httpchk GET /primary
     http-check expect status 200
-    default-server inter 3s fall 3 rise 2 on-marked-down shutdown-sessions
+    default-server inter 3s fall 3 rise 2 on-marked-down shutdown-sessions check-ssl verify required ca-file $TLS_CA
     server db1 10.0.0.41:5432 maxconn 100 check port 8008
     server db2 10.0.0.42:5432 maxconn 100 check port 8008
 
@@ -284,7 +469,7 @@ listen pg_read
     balance roundrobin
     option httpchk GET /health
     http-check expect status 200
-    default-server inter 3s fall 3 rise 2
+    default-server inter 3s fall 3 rise 2 check-ssl verify required ca-file $TLS_CA
     server db1 10.0.0.41:5432 maxconn 100 check port 8008
     server db2 10.0.0.42:5432 maxconn 100 check port 8008
 EOT
@@ -374,6 +559,13 @@ EOT
     fi
 }
 
+configure_db_manager_acl() {
+    sudo setfacl -R -m g:db-managers:rX /var/log/patroni 2>/dev/null || true
+    sudo setfacl -R -d -m g:db-managers:rX /var/log/patroni 2>/dev/null || true
+    sudo setfacl -R -m g:db-managers:rX /var/log/pgbackrest 2>/dev/null || true
+    sudo setfacl -R -d -m g:db-managers:rX /var/log/pgbackrest 2>/dev/null || true
+}
+
 configure_firewall() {
     apply_nftables_ruleset <<EOT
 #!/usr/sbin/nft -f
@@ -441,10 +633,15 @@ main() {
     configure_packages
     configure_network
     configure_resolver
+    configure_chrony
+    configure_ipa_join
+    configure_tls_cert
     configure_etcd
     configure_patroni
+    configure_pgbackrest
     configure_haproxy
     configure_keepalived
+    configure_db_manager_acl
     configure_firewall
     configure_sshd
 }

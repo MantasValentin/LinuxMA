@@ -4,7 +4,7 @@ set -euo pipefail
 
 source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/lib/common.sh"
 
-FQDN=firewall1.lab.internal
+FQDN=firewall-1.lab.internal
 
 # External (WAN) and internal (LAN) interfaces
 NIC_E=ens33

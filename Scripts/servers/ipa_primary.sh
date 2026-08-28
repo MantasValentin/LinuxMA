@@ -7,7 +7,7 @@ source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/lib/common.sh"
 read -r -s -p $'IPA admin password:\n' IPA_ADMIN_PASSWORD
 read -r -s -p $'IPA database password:\n' IPA_DM_PASSWORD
 
-FQDN=ipa1.lab.internal
+FQDN=ipa-1.lab.internal
 
 NIC=ens34
 

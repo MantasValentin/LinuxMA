@@ -6,8 +6,8 @@ source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/lib/common.sh"
 
 read -r -s -p $'IPA admin password:\n' IPA_ADMIN_PASSWORD
 
-FQDN=vault1.lab.internal
-PEER_FQDN=vault2.lab.internal
+FQDN=vault-1.lab.internal
+PEER_FQDN=vault-2.lab.internal
 VIP_FQDN=vault.lab.internal
 
 NIC=ens34
@@ -31,7 +31,7 @@ VAULT_VIP_PREFIX_V6=64
 # identical between vault_primary.sh and vault_secondary.sh
 VRRP_AUTH_PASS="VaultVRRP_Secret"
 
-NODE_ID="vault1"
+NODE_ID="vault-1"
 
 configure_hostname() {
     ensure_hostname $FQDN

@@ -4,7 +4,7 @@ set -euo pipefail
 
 source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/lib/common.sh"
 
-FQDN=dns-rslv2.lab.internal
+FQDN=dns-rslv-2.lab.internal
 
 NIC=ens34
 
