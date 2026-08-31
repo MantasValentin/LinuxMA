@@ -19,8 +19,8 @@ sudo dnf install -y ipa-client chrony
 # chrony config
 sudo tee /etc/chrony.conf > /dev/null <<EOT
 # Upstream time sources
-server ipa1.lab.internal iburst prefer
-server ipa2.lab.internal iburst
+server ipa-1.lab.internal iburst prefer
+server ipa-2.lab.internal iburst
 
 # Step the clock on large offsets instead of just slewing, but only at startup
 makestep 1.0 3
@@ -39,8 +39,8 @@ getent hosts "$FQDN" || { echo "DNS lookup failed for $FQDN"; exit 1; }
 sudo ipa-client-install \
     --domain=lab.internal \
     --realm=LAB.INTERNAL \
-    --server=ipa1.lab.internal \
-    --server=ipa2.lab.internal \
+    --server=ipa-1.lab.internal \
+    --server=ipa-2.lab.internal \
     --hostname="$FQDN" \
     --principal=admin \
     --password="$IPA_ADMIN_PASSWORD" \

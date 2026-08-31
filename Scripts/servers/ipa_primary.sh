@@ -97,7 +97,7 @@ configure_ipa_server() {
         sudo ipa-server-install \
             --realm=LAB.INTERNAL \
             --domain=lab.internal \
-            --hostname=ipa1.lab.internal \
+            --hostname=ipa-1.lab.internal \
             --ip-address="$LAN_IP_V4" \
             --ip-address="$LAN_IP_V6" \
             --ds-password="$IPA_DM_PASSWORD" \

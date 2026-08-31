@@ -63,12 +63,12 @@ EOT
 configure_chrony() {
     if write_file_if_changed /etc/chrony.conf 0644 root:root <<EOT
 # Prefer the primary IPA server, fall back to public pool
-server ipa1.lab.internal iburst prefer
+server ipa-1.lab.internal iburst prefer
 pool 2.rocky.pool.ntp.org iburst
 pool 3.rocky.pool.ntp.org iburst
 
 # Peer IPA server
-peer ipa1.lab.internal
+peer ipa-1.lab.internal
 
 # Serve time to the LAN
 allow 10.0.0.0/24
@@ -93,8 +93,8 @@ configure_ipa_replica() {
         sudo ipa-client-install \
             --domain=lab.internal \
             --realm=LAB.INTERNAL \
-            --server=ipa1.lab.internal \
-            --hostname=ipa2.lab.internal \
+            --server=ipa-1.lab.internal \
+            --hostname=ipa-2.lab.internal \
             --principal=admin \
             --password="$IPA_ADMIN_PASSWORD" \
             --no-ntp \

@@ -100,8 +100,8 @@ EOT
 
 configure_chrony() {
     if write_file_if_changed /etc/chrony.conf 0644 root:root <<EOT
-server ipa1.lab.internal iburst prefer
-server ipa2.lab.internal iburst
+server ipa-1.lab.internal iburst prefer
+server ipa-2.lab.internal iburst
 
 makestep 1.0 3
 driftfile /var/lib/chrony/drift
@@ -121,8 +121,8 @@ configure_ipa_join() {
         sudo ipa-client-install \
             --domain=lab.internal \
             --realm=LAB.INTERNAL \
-            --server=ipa1.lab.internal \
-            --server=ipa2.lab.internal \
+            --server=ipa-1.lab.internal \
+            --server=ipa-2.lab.internal \
             --hostname="$FQDN" \
             --principal=admin \
             --password="$IPA_ADMIN_PASSWORD" \
