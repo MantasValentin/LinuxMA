@@ -45,8 +45,8 @@ PG_VERSION=18
 # TLS material issued by the IPA CA
 TLS_CERT=/etc/pki/tls/certs/db-node.pem
 TLS_KEY=/etc/pki/tls/private/db-node.key
+TLS_COMBINED=/etc/pki/tls/certs/db-node-combined.pem
 TLS_CA=/etc/ipa/ca.crt
-TLS_HAPROXY_PEM=/etc/pki/tls/certs/db-node-haproxy.pem
 
 # pgBackRest backup is written to two independent repos for redundancy.
 BACKUP_REPO1_FQDN=db-backup-1.lab.internal
@@ -161,7 +161,7 @@ EOT
             -k "$TLS_KEY" \
             -N "CN=$FQDN" \
             -D "$FQDN" \
-            -K "etcd/$FQDN" \
+            -K "db/$FQDN" \
             -U id-kp-serverAuth \
             -U id-kp-clientAuth \
             -T id-kp-serverAuth \
@@ -175,10 +175,10 @@ EOT
     sudo chmod 644 "$TLS_CERT"
     sudo chmod 640 "$TLS_KEY"
 
-    if [ ! -f "$TLS_HAPROXY_PEM" ] || [ "$TLS_KEY" -nt "$TLS_HAPROXY_PEM" ]; then
-        sudo bash -c "cat '$TLS_CERT' '$TLS_KEY' > '$TLS_HAPROXY_PEM'"
-        sudo chown root:pgcerts "$TLS_HAPROXY_PEM"
-        sudo chmod 640 "$TLS_HAPROXY_PEM"
+    if [ ! -f "$TLS_COMBINED" ] || [ "$TLS_KEY" -nt "$TLS_COMBINED" ]; then
+        sudo bash -c "cat '$TLS_CERT' '$TLS_KEY' > '$TLS_COMBINED'"
+        sudo chown root:pgcerts "$TLS_COMBINED"
+        sudo chmod 640 "$TLS_COMBINED"
     fi
 }
 
@@ -301,18 +301,25 @@ bootstrap:
                 max_wal_senders: 10
                 max_replication_slots: 10
                 wal_keep_size: 512MB
+                ssl: "on"
+                ssl_cert_file: $TLS_CERT
+                ssl_key_file: $TLS_KEY
+                ssl_ca_file: $TLS_CA
+                ssl_min_protocol_version: TLSv1.2
 
     initdb:
         - encoding: UTF8
         - data-checksums
 
     pg_hba:
-        - host replication replicator 10.0.0.41/32 md5
-        - host replication replicator 10.0.0.42/32 md5
-        - host replication replicator fd00:10::41/128 md5
-        - host replication replicator fd00:10::42/128 md5
-        - host all all 10.0.0.0/24 md5
-        - host all all fd00:10::/64 md5
+        - hostssl replication replicator 10.0.0.41/32 md5
+        - hostssl replication replicator 10.0.0.42/32 md5
+        - hostssl replication replicator fd00:10::41/128 md5
+        - hostssl replication replicator fd00:10::42/128 md5
+        - hostssl all all 10.0.0.0/24 md5
+        - hostssl all all fd00:10::/64 md5
+        - hostnossl all all 0.0.0.0/0 reject
+        - hostnossl all all ::/0 reject
 
 postgresql:
     listen: 0.0.0.0:5432
@@ -323,9 +330,13 @@ postgresql:
         replication:
             username: replicator
             password: "$PG_REPL_PASSWORD"
+            sslmode: verify-ca
+            sslrootcert: $TLS_CA
         superuser:
             username: postgres
             password: "$PG_SUPERUSER_PASSWORD"
+            sslmode: verify-ca
+            sslrootcert: $TLS_CA
     parameters:
         unix_socket_directories: '/var/run/postgresql'
 
@@ -418,13 +429,13 @@ sudo -u postgres pgbackrest --stanza=pg-cluster --config=/etc/pgbackrest/pgbackr
 logger "pg_backup: \${TYPE} backup complete"
 EOT
 
-    write_file_if_changed /etc/cron.d/pgbackrest 0644 root:root <<'EOT'
+    write_file_if_changed /etc/cron.d/pgbackrest 0644 root:root <<EOT
 0 1 * * 0 root /usr/local/bin/pg_backup_if_primary.sh full   >> /var/log/pgbackrest/cron.log 2>&1
 0 1 * * 1-6 root /usr/local/bin/pg_backup_if_primary.sh diff >> /var/log/pgbackrest/cron.log 2>&1
 EOT
 
     if sudo systemctl is-active --quiet patroni && \
-       curl -fsk --cacert "$TLS_CA" https://127.0.0.1:8008/primary >/dev/null 2>&1; then
+        curl -fsk --cacert "$TLS_CA" https://127.0.0.1:8008/primary >/dev/null 2>&1; then
         sudo -u postgres pgbackrest --stanza=pg-cluster --config=/etc/pgbackrest/pgbackrest.conf \
             stanza-create 2>/dev/null || true
     fi
@@ -449,7 +460,7 @@ defaults
 
 listen stats
     mode http
-    bind *:7000 ssl crt $TLS_HAPROXY_PEM
+    bind *:7000 ssl crt $TLS_COMBINED
     stats enable
     stats uri /
     stats refresh 5s
