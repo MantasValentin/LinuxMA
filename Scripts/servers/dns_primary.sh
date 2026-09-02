@@ -16,7 +16,7 @@ LAN_IP_V6=fd00:10::7
 LAN_PREFIX_V6=64
 GATEWAY_V6=fd00:10::1
 
-ZONE_SERIAL=2026082501
+ZONE_SERIAL=2026090201
 
 # Temporary bootstrap networking before pulling this script to run it:
 #   sudo ip link set "$NIC" up
@@ -219,16 +219,18 @@ analytics   IN      AAAA    fd00:10::31
 ; Database, db VIP is 40
 db           IN      A       10.0.0.40
 db           IN      AAAA    fd00:10::40
-db-1          IN      A       10.0.0.41
-db-1          IN      AAAA    fd00:10::41
-db-2          IN      A       10.0.0.42
-db-2          IN      AAAA    fd00:10::42
-db-witness   IN      A       10.0.0.43
-db-witness   IN      AAAA    fd00:10::43
-db-backup-1   IN      A       10.0.0.44
-db-backup-1   IN      AAAA    fd00:10::44
-db-backup-2   IN      A       10.0.0.45
-db-backup-2   IN      AAAA    fd00:10::45
+db-proxy-1    IN      A       10.0.0.41
+db-proxy-1    IN      AAAA    fd00:10::41
+db-proxy-2    IN      A       10.0.0.42
+db-proxy-2    IN      AAAA    fd00:10::42
+db-1          IN      A       10.0.0.43
+db-1          IN      AAAA    fd00:10::43
+db-2          IN      A       10.0.0.44
+db-2          IN      AAAA    fd00:10::44
+db-backup-1   IN      A       10.0.0.45
+db-backup-1   IN      AAAA    fd00:10::45
+db-backup-2   IN      A       10.0.0.46
+db-backup-2   IN      AAAA    fd00:10::46
 
 ; Recursive DNS resolver
 dns-rslv-1    IN      A       10.0.0.53
@@ -290,11 +292,12 @@ EOT
 
 ; Database, db VIP is 40
 40      IN      PTR     db.lab.internal.
-41      IN      PTR     db-1.lab.internal.
-42      IN      PTR     db-2.lab.internal.
-43      IN      PTR     db-witness.lab.internal.
-44      IN      PTR     db-backup-1.lab.internal.
-45      IN      PTR     db-backup-2.lab.internal.
+41      IN      PTR     db-proxy-1.lab.internal.
+42      IN      PTR     db-proxy-2.lab.internal.
+43      IN      PTR     db-1.lab.internal.
+44      IN      PTR     db-2.lab.internal.
+45      IN      PTR     db-backup-1.lab.internal.
+46      IN      PTR     db-backup-2.lab.internal.
 
 ; Recursive DNS resolver
 53      IN      PTR     dns-rslv-1.lab.internal.
@@ -351,11 +354,12 @@ EOT
 
 ; Database, db VIP is 40
 0.4.0.0.0.0.0.0.0.0.0.0.0.0.0.0     IN PTR db.lab.internal.
-1.4.0.0.0.0.0.0.0.0.0.0.0.0.0.0     IN PTR db-1.lab.internal.
-2.4.0.0.0.0.0.0.0.0.0.0.0.0.0.0     IN PTR db-2.lab.internal.
-3.4.0.0.0.0.0.0.0.0.0.0.0.0.0.0     IN PTR db-witness.lab.internal.
-4.4.0.0.0.0.0.0.0.0.0.0.0.0.0.0     IN PTR db-backup-1.lab.internal.
-5.4.0.0.0.0.0.0.0.0.0.0.0.0.0.0     IN PTR db-backup-2.lab.internal.
+1.4.0.0.0.0.0.0.0.0.0.0.0.0.0.0     IN PTR db-proxy-1.lab.internal.
+2.4.0.0.0.0.0.0.0.0.0.0.0.0.0.0     IN PTR db-proxy-2.lab.internal.
+3.4.0.0.0.0.0.0.0.0.0.0.0.0.0.0     IN PTR db-1.lab.internal.
+4.4.0.0.0.0.0.0.0.0.0.0.0.0.0.0     IN PTR db-2.lab.internal.
+5.4.0.0.0.0.0.0.0.0.0.0.0.0.0.0     IN PTR db-backup-1.lab.internal.
+6.4.0.0.0.0.0.0.0.0.0.0.0.0.0.0     IN PTR db-backup-2.lab.internal.
 
 ; Recursive DNS resolver
 3.5.0.0.0.0.0.0.0.0.0.0.0.0.0.0     IN PTR dns-rslv-1.lab.internal.

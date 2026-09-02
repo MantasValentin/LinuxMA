@@ -34,7 +34,6 @@ LAN_PREFIX_NET_V6=fd00:10
 PEER_LAN_IP_V6=fd00:10::2
 
 # Shared secret for keepalived VRRP auth
-# identical between firewall_primary.sh and firewall_secondary.sh
 VRRP_AUTH_PASS="VRRP_Secret"
 
 configure_hostname() {
@@ -254,10 +253,10 @@ vrrp_script chk_wan_ipv6 {
 
 vrrp_sync_group VG_FIREWALL {
     group {
-        VI_1
-        VI_2
-        VI_3
-        VI_4
+        VIP_LAN_V4
+        VIP_WAN_V4
+        VIP_LAN_V6
+        VIP_WAN_V6
     }
 
     notify_master "/etc/keepalived/notify.sh master"
@@ -266,7 +265,7 @@ vrrp_sync_group VG_FIREWALL {
 }
 
 # IPv4 LAN VIP
-vrrp_instance VI_1 {
+vrrp_instance VIP_LAN_V4 {
     state BACKUP
     interface $NIC_I
     virtual_router_id 100
@@ -294,7 +293,7 @@ vrrp_instance VI_1 {
 }
 
 # IPv4 WAN VIP
-vrrp_instance VI_2 {
+vrrp_instance VIP_WAN_V4 {
     state BACKUP
     interface $NIC_E
     virtual_router_id 200
@@ -322,7 +321,7 @@ vrrp_instance VI_2 {
 }
 
 # IPv6 LAN VIP
-vrrp_instance VI_3 {
+vrrp_instance VIP_LAN_V6 {
     state BACKUP
     interface $NIC_I
     virtual_router_id 101
@@ -345,7 +344,7 @@ vrrp_instance VI_3 {
 }
 
 # IPv6 WAN VIP
-vrrp_instance VI_4 {
+vrrp_instance VIP_WAN_V6 {
     state BACKUP
     interface $NIC_E
     virtual_router_id 201

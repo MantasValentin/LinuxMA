@@ -6,28 +6,27 @@ source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/lib/common.sh"
 
 read -r -s -p $'Postgres superuser password:\n' PG_SUPERUSER_PASSWORD
 read -r -s -p $'Postgres replication password:\n' PG_REPL_PASSWORD
+read -r -s -p $'DB backup encryption password:\n' DB_BACKUP_PASSWORD
 read -r -s -p $'IPA admin password:\n' IPA_ADMIN_PASSWORD
 
 FQDN=db-2.lab.internal
 
 NIC=ens34
 
-LAN_IP_V4=10.0.0.42
+LAN_IP_V4=10.0.0.44
 LAN_PREFIX_V4=24
 GATEWAY_V4=10.0.0.1
-PEER_IP_V4=10.0.0.41
-WITNESS_IP_V4=10.0.0.43
+PEER_IP_V4=10.0.0.43
 
-LAN_IP_V6=fd00:10::42
+LAN_IP_V6=fd00:10::44
 LAN_PREFIX_V6=64
 GATEWAY_V6=fd00:10::1
-PEER_IP_V6=fd00:10::41
-WITNESS_IP_V6=fd00:10::43
+PEER_IP_V6=fd00:10::43
 
-PG_VIP_V4=10.0.0.40
-PG_VIP_PREFIX_V4=24
-PG_VIP_V6=fd00:10::40
-PG_VIP_PREFIX_V6=64
+DB_PROXY_1_IP_V4=10.0.0.41
+DB_PROXY_1_IP_V6=fd00:10::41
+DB_PROXY_2_IP_V4=10.0.0.42
+DB_PROXY_2_IP_V6=fd00:10::42
 
 # Shared secret for keepalived VRRP auth
 # identical between db_primary.sh and db_secondary.sh
@@ -35,9 +34,9 @@ VRRP_AUTH_PASS="PGVRRP_Secret"
 
 # Patroni/etcd identity
 NODE_NAME=db-2
-ETCD_NAME=etcd2
+ETCD_NAME=etcd4
 ETCD_VERSION=v3.7.0
-ETCD_CLUSTER="etcd1=https://10.0.0.41:2380,etcd2=https://10.0.0.42:2380,etcd3=https://10.0.0.43:2380"
+ETCD_CLUSTER="etcd1=https://10.0.0.41:2380,etcd2=https://10.0.0.42:2380,etcd3=https://10.0.0.43:2380,etcd4=https://10.0.0.44:2380"
 
 # PostgreSQL version
 PG_VERSION=18
@@ -49,8 +48,8 @@ TLS_COMBINED=/etc/pki/tls/certs/db-node-combined.pem
 TLS_CA=/etc/ipa/ca.crt
 
 # pgBackRest backup is written to two independent repos for redundancy.
-BACKUP_REPO1_FQDN=db-backup-1.lab.internal
-BACKUP_REPO2_FQDN=db-backup-2.lab.internal
+BACKUP_REPO_1_FQDN=db-backup-1.lab.internal
+BACKUP_REPO_2_FQDN=db-backup-2.lab.internal
 
 configure_hostname() {
     ensure_hostname $FQDN
@@ -59,7 +58,7 @@ configure_hostname() {
 configure_packages() {
     sudo dnf upgrade -y
     ensure_packages epel-release
-    ensure_packages openssh-server git nftables keepalived haproxy systemd-networkd python3-pip ipa-client chrony acl
+    ensure_packages openssh-server git nftables keepalived haproxy systemd-networkd python3-pip ipa-client chrony
 
     sudo dnf -qy module disable postgresql || true
     ensure_repo_rpm pgdg-redhat-repo "https://download.postgresql.org/pub/repos/yum/reporpms/EL-10-x86_64/pgdg-redhat-repo-latest.noarch.rpm"
@@ -312,12 +311,12 @@ bootstrap:
         - data-checksums
 
     pg_hba:
-        - hostssl replication replicator 10.0.0.41/32 md5
-        - hostssl replication replicator 10.0.0.42/32 md5
-        - hostssl replication replicator fd00:10::41/128 md5
-        - hostssl replication replicator fd00:10::42/128 md5
-        - hostssl all all 10.0.0.0/24 md5
-        - hostssl all all fd00:10::/64 md5
+        - hostssl replication replicator 10.0.0.41/32 scram-sha-256
+        - hostssl replication replicator 10.0.0.42/32 scram-sha-256
+        - hostssl replication replicator fd00:10::41/128 scram-sha-256
+        - hostssl replication replicator fd00:10::42/128 scram-sha-256
+        - hostssl all all 10.0.0.0/24 scram-sha-256
+        - hostssl all all fd00:10::/64 scram-sha-256
         - hostnossl all all 0.0.0.0/0 reject
         - hostnossl all all ::/0 reject
 
@@ -382,17 +381,21 @@ configure_pgbackrest() {
 
     write_file_if_changed /etc/pgbackrest/pgbackrest.conf 0640 postgres:postgres <<EOT
 [global]
-repo1-host=$BACKUP_REPO1_FQDN
+repo1-host=$BACKUP_REPO_1_FQDN
 repo1-host-type=tls
 repo1-host-ca-file=$TLS_CA
 repo1-host-cert-file=$TLS_CERT
 repo1-host-key-file=$TLS_KEY
+repo1-cipher-type=aes-256-cbc
+repo1-cipher-pass=$DB_BACKUP_PASSWORD
 
-repo2-host=$BACKUP_REPO2_FQDN
+repo2-host=$BACKUP_REPO_2_FQDN
 repo2-host-type=tls
 repo2-host-ca-file=$TLS_CA
 repo2-host-cert-file=$TLS_CERT
 repo2-host-key-file=$TLS_KEY
+repo2-cipher-type=aes-256-cbc
+repo2-cipher-pass=$DB_BACKUP_PASSWORD
 
 log-path=/var/log/pgbackrest
 process-max=2
@@ -439,142 +442,8 @@ EOT
         sudo -u postgres pgbackrest --stanza=pg-cluster --config=/etc/pgbackrest/pgbackrest.conf \
             stanza-create 2>/dev/null || true
     fi
-}
 
-configure_haproxy() {
-    sudo usermod -aG pgcerts haproxy 2>/dev/null || true
-
-    if write_file_if_changed /etc/haproxy/haproxy.cfg 0644 root:root <<EOT
-global
-    maxconn 500
-    log 127.0.0.1 local0
-
-defaults
-    mode tcp
-    log global
-    retries 2
-    timeout client 30m
-    timeout connect 4s
-    timeout server 30m
-    timeout check 5s
-
-listen stats
-    mode http
-    bind *:7000 ssl crt $TLS_COMBINED
-    stats enable
-    stats uri /
-    stats refresh 5s
-
-# Writes: only the current Patroni leader passes this check
-listen pg_write
-    bind *:5000
-    option httpchk GET /primary
-    http-check expect status 200
-    default-server inter 3s fall 3 rise 2 on-marked-down shutdown-sessions check-ssl verify required ca-file $TLS_CA
-    server db1 10.0.0.41:5432 maxconn 100 check port 8008
-    server db2 10.0.0.42:5432 maxconn 100 check port 8008
-
-# Reads: any node that is up passes this check, so both share the load
-listen pg_read
-    bind *:5001
-    balance roundrobin
-    option httpchk GET /health
-    http-check expect status 200
-    default-server inter 3s fall 3 rise 2 check-ssl verify required ca-file $TLS_CA
-    server db1 10.0.0.41:5432 maxconn 100 check port 8008
-    server db2 10.0.0.42:5432 maxconn 100 check port 8008
-EOT
-    then
-        sudo setsebool -P haproxy_connect_any=1 || true
-        if sudo systemctl is-active --quiet haproxy; then
-            sudo systemctl restart haproxy
-        else
-            sudo systemctl enable --now haproxy
-        fi
-    else
-        sudo setsebool -P haproxy_connect_any=1 || true
-        sudo systemctl enable --now haproxy
-    fi
-}
-
-configure_keepalived() {
-    if write_file_if_changed /etc/keepalived/keepalived.conf 0644 root:root <<EOT
-global_defs {
-    router_id DB_2
-    script_user root
-    enable_script_security
-}
-
-vrrp_script chk_haproxy {
-    script "/usr/bin/pgrep haproxy"
-    interval 2
-    weight -60
-    fall 2
-    rise 2
-}
-
-vrrp_sync_group VG_DB {
-    group {
-        VI_DB_V4
-        VI_DB_V6
-    }
-}
-
-vrrp_instance VI_DB_V4 {
-    state BACKUP
-    interface $NIC
-    virtual_router_id 110
-    priority 100
-    advert_int 1
-    preempt_delay 3
-
-    authentication {
-        auth_type PASS
-        auth_pass $VRRP_AUTH_PASS
-    }
-
-    virtual_ipaddress {
-        $PG_VIP_V4/$PG_VIP_PREFIX_V4
-    }
-
-    track_script {
-        chk_haproxy
-    }
-}
-
-vrrp_instance VI_DB_V6 {
-    state BACKUP
-    interface $NIC
-    virtual_router_id 111
-    priority 100
-    advert_int 1
-    preempt_delay 3
-
-    virtual_ipaddress {
-        $PG_VIP_V6/$PG_VIP_PREFIX_V6
-    }
-
-    track_script {
-        chk_haproxy
-    }
-}
-EOT
-    then
-        if sudo systemctl is-active --quiet keepalived; then
-            sudo systemctl restart keepalived
-        else
-            sudo systemctl enable --now keepalived
-        fi
-    else
-        sudo systemctl enable --now keepalived
-    fi
-}
-
-configure_db_manager_acl() {
-    sudo setfacl -R -m g:db-managers:rX /var/log/patroni 2>/dev/null || true
-    sudo setfacl -R -d -m g:db-managers:rX /var/log/patroni 2>/dev/null || true
-    sudo setfacl -R -m g:db-managers:rX /var/log/pgbackrest 2>/dev/null || true
-    sudo setfacl -R -d -m g:db-managers:rX /var/log/pgbackrest 2>/dev/null || true
+    unset DB_BACKUP_PASSWORD
 }
 
 configure_firewall() {
@@ -599,25 +468,17 @@ table inet filter {
         ip saddr 10.0.0.20-10.0.0.29 tcp dport 22 accept
         ip6 saddr fd00:10::20-fd00:10::29 tcp dport 22 accept
 
-        # Postgres - only the peer DB node talks directly on 5432 (replication + local haproxy)
-        ip saddr { $LAN_IP_V4, $PEER_IP_V4 } tcp dport 5432 accept
-        ip6 saddr { $LAN_IP_V6, $PEER_IP_V6 } tcp dport 5432 accept
+        # Postgres the peer and proxy
+        ip saddr { $LAN_IP_V4, $PEER_IP_V4, $DB_PROXY_1_IP_V4, $DB_PROXY_2_IP_V4 } tcp dport 5432 accept
+        ip6 saddr { $LAN_IP_V6, $PEER_IP_V6, $DB_PROXY_1_IP_V6, $DB_PROXY_2_IP_V6 } tcp dport 5432 accept
 
-        # Patroni REST API - peer node health checks
+        # Patroni REST API
         ip saddr { $LAN_IP_V4, $PEER_IP_V4 } tcp dport 8008 accept
         ip6 saddr { $LAN_IP_V6, $PEER_IP_V6 } tcp dport 8008 accept
 
-        # etcd peer + client traffic between the three etcd members
-        ip saddr { $LAN_IP_V4, $PEER_IP_V4, $WITNESS_IP_V4 } tcp dport { 2379, 2380 } accept
-        ip6 saddr { $LAN_IP_V6, $PEER_IP_V6, $WITNESS_IP_V6 } tcp dport { 2379, 2380 } accept
-
-        # HAProxy read/write ports - open to the LAN (this is what apps connect to)
-        ip saddr 10.0.0.0/24 tcp dport { 5000, 5001 } accept
-        ip6 saddr fd00:10::/64 tcp dport { 5000, 5001 } accept
-
-        # HAProxy stats - mgmt range only
-        ip saddr 10.0.0.20-10.0.0.29 tcp dport 7000 accept
-        ip6 saddr fd00:10::20-fd00:10::29 tcp dport 7000 accept
+        # etcd peers
+        ip saddr { $LAN_IP_V4, $PEER_IP_V4, $DB_PROXY_1_IP_V4, $DB_PROXY_2_IP_V4 } tcp dport { 2379, 2380 } accept
+        ip6 saddr { $LAN_IP_V6, $PEER_IP_V6, $DB_PROXY_1_IP_V6, $DB_PROXY_2_IP_V6 } tcp dport { 2379, 2380 } accept
 
         # For node exporter from analytics server 10.0.0.31 / fd00:10::31
         ip saddr 10.0.0.31/24 tcp dport 9100 accept
@@ -650,9 +511,6 @@ main() {
     configure_etcd
     configure_patroni
     configure_pgbackrest
-    configure_haproxy
-    configure_keepalived
-    configure_db_manager_acl
     configure_firewall
     configure_sshd
 }

@@ -4,27 +4,27 @@ set -euo pipefail
 
 source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/lib/common.sh"
 
+read -r -s -p $'DB backup encryption password:\n' DB_BACKUP_PASSWORD
 read -r -s -p $'IPA admin password:\n' IPA_ADMIN_PASSWORD
 
 FQDN=db-backup-1.lab.internal
 
 NIC=ens34
 
-LAN_IP_V4=10.0.0.44
+LAN_IP_V4=10.0.0.45
 LAN_PREFIX_V4=24
 GATEWAY_V4=10.0.0.1
 
-LAN_IP_V6=fd00:10::44
+LAN_IP_V6=fd00:10::45
 LAN_PREFIX_V6=64
 GATEWAY_V6=fd00:10::1
 
-# The two db-cluster nodes allowed to push backups/WAL to this repo
-DB1_IP_V4=10.0.0.41
-DB2_IP_V4=10.0.0.42
-DB1_IP_V6=fd00:10::41
-DB2_IP_V6=fd00:10::42
-DB1_FQDN=db-1.lab.internal
-DB2_FQDN=db-2.lab.internal
+DB_1_IP_V4=10.0.0.43
+DB_1_IP_V6=fd00:10::43
+DB_2_IP_V4=10.0.0.44
+DB_2_IP_V6=fd00:10::44
+DB_1_FQDN=db-1.lab.internal
+DB_2_FQDN=db-2.lab.internal
 
 # TLS material issued by the IPA CA for this repo host
 TLS_CERT=/etc/pki/tls/certs/db-backup-node.pem
@@ -38,7 +38,7 @@ configure_hostname() {
 configure_packages() {
     sudo dnf upgrade -y
     ensure_packages epel-release
-    ensure_packages openssh-server git nftables systemd-networkd ipa-client chrony acl
+    ensure_packages openssh-server git nftables systemd-networkd ipa-client chrony
 
     ensure_repo_rpm pgdg-redhat-repo "https://download.postgresql.org/pub/repos/yum/reporpms/EL-10-x86_64/pgdg-redhat-repo-latest.noarch.rpm"
     ensure_packages pgbackrest
@@ -132,7 +132,7 @@ EOT
             -k "$TLS_KEY" \
             -N "CN=$FQDN" \
             -D "$FQDN" \
-            -K "pgbackrest/$FQDN" \
+            -K "db/$FQDN" \
             -U id-kp-serverAuth \
             -T id-kp-serverAuth \
             -g 4096 \
@@ -155,19 +155,22 @@ configure_pgbackrest_repo() {
     write_file_if_changed /etc/pgbackrest/pgbackrest.conf 0640 postgres:postgres <<EOT && changed=1
 [global]
 repo1-path=/var/lib/pgbackrest
-repo1-retention-full=4
+repo1-retention-full=2
 repo1-retention-full-type=count
 repo1-retention-diff=7
 log-path=/var/log/pgbackrest
 process-max=2
 compress-type=zst
 
+repo1-cipher-type=aes-256-cbc
+repo1-cipher-pass=$DB_BACKUP_PASSWORD
+
 tls-server-address=*
 tls-server-cert-file=$TLS_CERT
 tls-server-key-file=$TLS_KEY
 tls-server-ca-file=$TLS_CA
-tls-server-auth=$DB1_FQDN=pg-cluster
-tls-server-auth=$DB2_FQDN=pg-cluster
+tls-server-auth=$DB_1_FQDN=pg-cluster
+tls-server-auth=$DB_2_FQDN=pg-cluster
 EOT
 
     write_file_if_changed /etc/systemd/system/pgbackrest.service 0644 root:root <<EOT && changed=1
@@ -194,11 +197,8 @@ EOT
         sudo systemctl restart pgbackrest
     fi
     sudo systemctl enable pgbackrest
-}
 
-configure_db_manager_acl() {
-    sudo setfacl -R -m g:db-managers:rX /var/log/pgbackrest 2>/dev/null || true
-    sudo setfacl -R -d -m g:db-managers:rX /var/log/pgbackrest 2>/dev/null || true
+    unset DB_BACKUP_PASSWORD
 }
 
 configure_firewall() {
@@ -221,8 +221,8 @@ table inet filter {
         ip6 saddr fd00:10::20-fd00:10::29 tcp dport 22 accept
 
         # pgBackRest TLS repo access
-        ip saddr { $DB1_IP_V4, $DB2_IP_V4 } tcp dport 8432 accept
-        ip6 saddr { $DB1_IP_V6, $DB2_IP_V6 } tcp dport 8432 accept
+        ip saddr { $DB_1_IP_V4, $DB_2_IP_V4 } tcp dport 8432 accept
+        ip6 saddr { $DB_1_IP_V6, $DB_2_IP_V6 } tcp dport 8432 accept
 
         # For node exporter from analytics server 10.0.0.31 / fd00:10::31
         ip saddr 10.0.0.31/24 tcp dport 9100 accept
@@ -253,7 +253,6 @@ main() {
     configure_ipa_join
     configure_tls_cert
     configure_pgbackrest_repo
-    configure_db_manager_acl
     configure_firewall
     configure_sshd
 }

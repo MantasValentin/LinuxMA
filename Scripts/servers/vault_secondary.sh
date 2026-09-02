@@ -200,7 +200,7 @@ defaults
     log global
     retries 2
     timeout client 5m
-    timeout connect 4s
+    timeout connect 5s
     timeout server 5m
     timeout check 5s
 
@@ -343,8 +343,8 @@ table inet filter {
         ip6 saddr fd00:10::/64 tcp dport 8200 accept
 
         # Vault raft replication only from the two vault nodes
-        ip saddr { 10.0.0.10, 10.0.0.11 } tcp dport 8201 accept
-        ip6 saddr { fd00:10::10, fd00:10::11 } tcp dport 8201 accept
+        ip saddr { $LAN_IP_V4, $PEER_IP_V4 } tcp dport 8201 accept
+        ip6 saddr { $LAN_IP_V6, $PEER_IP_V6 } tcp dport 8201 accept
 
         # For node exporter from analytics server 10.0.0.31 / fd00:10::31
         ip saddr 10.0.0.31/24 tcp dport 9100 accept
