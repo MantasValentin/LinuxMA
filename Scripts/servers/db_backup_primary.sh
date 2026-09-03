@@ -225,8 +225,8 @@ table inet filter {
         ip6 saddr { $DB_1_IP_V6, $DB_2_IP_V6 } tcp dport 8432 accept
 
         # For node exporter from analytics server 10.0.0.31 / fd00:10::31
-        ip saddr 10.0.0.31/24 tcp dport 9100 accept
-        ip6 saddr fd00:10::31/64 tcp dport 9100 accept
+        ip saddr 10.0.0.31/32 tcp dport 9100 accept
+        ip6 saddr fd00:10::31/128 tcp dport 9100 accept
     }
 
     chain forward {

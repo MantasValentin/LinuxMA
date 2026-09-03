@@ -412,7 +412,7 @@ EOT
 configure_keepalived() {
     if write_file_if_changed /etc/keepalived/keepalived.conf 0644 root:root <<EOT
 global_defs {
-    router_id DB_1
+    router_id DB_PROXY_2
     script_user root
     enable_script_security
 }
@@ -521,8 +521,8 @@ table inet filter {
         ip6 saddr fd00:10::20-fd00:10::29 tcp dport 7000 accept
 
         # For node exporter from analytics server 10.0.0.31 / fd00:10::31
-        ip saddr 10.0.0.31/24 tcp dport 9100 accept
-        ip6 saddr fd00:10::31/64 tcp dport 9100 accept
+        ip saddr 10.0.0.31/32 tcp dport 9100 accept
+        ip6 saddr fd00:10::31/128 tcp dport 9100 accept
     }
 
     chain forward {

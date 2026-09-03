@@ -163,8 +163,8 @@ table inet filter {
         ip6 saddr fd00:10::/64 tcp dport 8888 accept
 
         # For node exporter from analytics server 10.0.0.31 / fd00:10::31
-        ip saddr 10.0.0.31/24 tcp dport 9100 accept
-        ip6 saddr fd00:10::31/64 tcp dport 9100 accept
+        ip saddr 10.0.0.31/32 tcp dport 9100 accept
+        ip6 saddr fd00:10::31/128 tcp dport 9100 accept
     }
 
     chain forward {

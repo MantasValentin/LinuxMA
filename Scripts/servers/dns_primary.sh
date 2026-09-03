@@ -138,7 +138,7 @@ configure_zones() {
 
     write_file_if_changed /var/named/db.lab.internal 0644 root:named <<EOT && ZONE_DATA_CHANGED=1
 \$TTL    3600
-@       IN      SOA     ns1.lab.internal. dns-admin.lab.internal. (
+@       IN      SOA     ns-1.lab.internal. dns-admin.lab.internal. (
                              $ZONE_SERIAL  ; Serial YYYYMMDDnn
                                    3600    ; Refresh (1 hour)
                                     900    ; Retry (15 min)
@@ -249,7 +249,7 @@ EOT
 
     write_file_if_changed /var/named/db.10.0.0 0644 root:named <<EOT && ZONE_DATA_CHANGED=1
 \$TTL    3600
-@       IN      SOA     ns1.lab.internal. dns-admin.lab.internal. (
+@       IN      SOA     ns-1.lab.internal. dns-admin.lab.internal. (
                              $ZONE_SERIAL  ; Serial YYYYMMDDnn
                                    3600    ; Refresh (1 hour)
                                     900    ; Retry (15 min)
@@ -312,15 +312,15 @@ EOT
 
     write_file_if_changed /var/named/db.fd00.10 0644 root:named <<EOT && ZONE_DATA_CHANGED=1
 \$TTL    3600
-@       IN      SOA     ns1.lab.internal. dns-admin.lab.internal. (
+@       IN      SOA     ns-1.lab.internal. dns-admin.lab.internal. (
                              $ZONE_SERIAL    ; Serial YYYYMMDDnn
                                    3600    ; Refresh (1 hour)
                                     900    ; Retry (15 min)
                                  604800    ; Expire (1 week)
                                    3600 )  ; Negative cache TTL (1 hour)
 
-@       IN      NS      ns1.lab.internal.
-@       IN      NS      ns2.lab.internal.
+@       IN      NS      ns-1.lab.internal.
+@       IN      NS      ns-2.lab.internal.
 
 ; Firewall, firewall VIP is 1
 1.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0     IN PTR firewall.lab.internal.
@@ -427,8 +427,8 @@ table inet filter {
         ip6 saddr fd00:10::/64 tcp dport 53 accept
 
         # For node exporter from analytics server 10.0.0.31 / fd00:10::31
-        ip saddr 10.0.0.31/24 tcp dport 9100 accept
-        ip6 saddr fd00:10::31/64 tcp dport 9100 accept
+        ip saddr 10.0.0.31/32 tcp dport 9100 accept
+        ip6 saddr fd00:10::31/128 tcp dport 9100 accept
     }
 
     chain forward {

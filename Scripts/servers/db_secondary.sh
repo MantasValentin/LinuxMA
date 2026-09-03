@@ -28,10 +28,6 @@ DB_PROXY_1_IP_V6=fd00:10::41
 DB_PROXY_2_IP_V4=10.0.0.42
 DB_PROXY_2_IP_V6=fd00:10::42
 
-# Shared secret for keepalived VRRP auth
-# identical between db_primary.sh and db_secondary.sh
-VRRP_AUTH_PASS="PGVRRP_Secret"
-
 # Patroni/etcd identity
 NODE_NAME=db-2
 ETCD_NAME=etcd4
@@ -58,7 +54,7 @@ configure_hostname() {
 configure_packages() {
     sudo dnf upgrade -y
     ensure_packages epel-release
-    ensure_packages openssh-server git nftables keepalived haproxy systemd-networkd python3-pip ipa-client chrony
+    ensure_packages openssh-server git nftables systemd-networkd python3-pip ipa-client chrony
 
     sudo dnf -qy module disable postgresql || true
     ensure_repo_rpm pgdg-redhat-repo "https://download.postgresql.org/pub/repos/yum/reporpms/EL-10-x86_64/pgdg-redhat-repo-latest.noarch.rpm"
@@ -276,7 +272,7 @@ restapi:
     cafile: $TLS_CA
 
 etcd3:
-    hosts: 10.0.0.41:2379,10.0.0.42:2379,10.0.0.43:2379
+    hosts: 10.0.0.41:2379,10.0.0.42:2379,10.0.0.43:2379,10.0.0.44:2379
     protocol: https
     cacert: $TLS_CA
     cert: $TLS_CERT
@@ -421,7 +417,7 @@ EOT
 set -euo pipefail
 TYPE=\$1   # full or diff
 
-if ! curl -fsk --cacert $TLS_CA https://127.0.0.1:8008/primary > /dev/null 2>&1; then
+if ! curl -fs --cacert $TLS_CA --resolve "$FQDN:8008:127.0.0.1" "https://$FQDN:8008/primary" > /dev/null 2>&1; then
     logger "pg_backup: not primary, skipping \${TYPE} backup"
     exit 0
 fi
@@ -438,7 +434,7 @@ EOT
 EOT
 
     if sudo systemctl is-active --quiet patroni && \
-        curl -fsk --cacert "$TLS_CA" https://127.0.0.1:8008/primary >/dev/null 2>&1; then
+        curl -fs --cacert "$TLS_CA" --resolve "$FQDN:8008:127.0.0.1" "https://$FQDN:8008/primary" >/dev/null 2>&1; then
         sudo -u postgres pgbackrest --stanza=pg-cluster --config=/etc/pgbackrest/pgbackrest.conf \
             stanza-create 2>/dev/null || true
     fi
@@ -461,9 +457,6 @@ table inet filter {
         ip protocol icmp accept
         meta l4proto ipv6-icmp accept
 
-        # VRRP for the proxy VIP
-        meta l4proto vrrp accept
-
         # SSH only from the management range
         ip saddr 10.0.0.20-10.0.0.29 tcp dport 22 accept
         ip6 saddr fd00:10::20-fd00:10::29 tcp dport 22 accept
@@ -481,8 +474,8 @@ table inet filter {
         ip6 saddr { $LAN_IP_V6, $PEER_IP_V6, $DB_PROXY_1_IP_V6, $DB_PROXY_2_IP_V6 } tcp dport { 2379, 2380 } accept
 
         # For node exporter from analytics server 10.0.0.31 / fd00:10::31
-        ip saddr 10.0.0.31/24 tcp dport 9100 accept
-        ip6 saddr fd00:10::31/64 tcp dport 9100 accept
+        ip saddr 10.0.0.31/32 tcp dport 9100 accept
+        ip6 saddr fd00:10::31/128 tcp dport 9100 accept
     }
 
     chain forward {

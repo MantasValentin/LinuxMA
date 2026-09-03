@@ -152,6 +152,7 @@ ui           = true
 disable_mlock = false
 api_addr     = "https://$FQDN:8200"
 cluster_addr = "https://$FQDN:8201"
+cluster_name = "vault-cluster"
 
 storage "raft" {
     path    = "/opt/vault/data"
@@ -350,8 +351,8 @@ table inet filter {
         ip6 saddr { $LAN_IP_V6, $PEER_IP_V6 } tcp dport 8201 accept
 
         # For node exporter from analytics server 10.0.0.31 / fd00:10::31
-        ip saddr 10.0.0.31/24 tcp dport 9100 accept
-        ip6 saddr fd00:10::31/64 tcp dport 9100 accept
+        ip saddr 10.0.0.31/32 tcp dport 9100 accept
+        ip6 saddr fd00:10::31/128 tcp dport 9100 accept
     }
 
     chain forward {
