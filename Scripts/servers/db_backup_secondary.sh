@@ -132,9 +132,8 @@ EOT
             -k "$TLS_KEY" \
             -N "CN=$FQDN" \
             -D "$FQDN" \
-            -K "pgbackrest/$FQDN" \
+            -K "db/$FQDN" \
             -U id-kp-serverAuth \
-            -T id-kp-serverAuth \
             -g 4096 \
             -C "/usr/local/bin/pgbackrest-tls-renew-hook.sh" \
             -w
