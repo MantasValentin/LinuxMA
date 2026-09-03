@@ -132,7 +132,7 @@ EOT
             -k "$TLS_KEY" \
             -N "CN=$FQDN" \
             -D "$FQDN" \
-            -K "db/$FQDN" \
+            -K "pgbackrest/$FQDN" \
             -U id-kp-serverAuth \
             -T id-kp-serverAuth \
             -g 4096 \
