@@ -146,8 +146,8 @@ EOT
 }
 
 configure_pgbackrest_repo() {
-    sudo mkdir -p /var/lib/pgbackrest /var/log/pgbackrest
-    sudo chown postgres:postgres /var/lib/pgbackrest /var/log/pgbackrest
+    sudo mkdir -p /var/lib/pgbackrest /var/log/pgbackrest /etc/pgbackrest
+    sudo chown postgres:postgres /var/lib/pgbackrest /var/log/pgbackrest /etc/pgbackrest
     sudo chmod 750 /var/lib/pgbackrest
 
     local changed=0
