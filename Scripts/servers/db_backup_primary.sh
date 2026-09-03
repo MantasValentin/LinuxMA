@@ -181,7 +181,7 @@ Wants=network-online.target
 [Service]
 Type=forking
 User=postgres
-ExecStart=/usr/bin/pgbackrest server --daemon --config=/etc/pgbackrest/pgbackrest.conf
+ExecStart=/usr/bin/pgbackrest server --config=/etc/pgbackrest/pgbackrest.conf
 Restart=on-failure
 RestartSec=5
 
