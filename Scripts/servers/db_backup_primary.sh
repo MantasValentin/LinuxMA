@@ -179,7 +179,7 @@ After=network-online.target
 Wants=network-online.target
 
 [Service]
-Type=forking
+Type=simple
 User=postgres
 ExecStart=/usr/bin/pgbackrest server --config=/etc/pgbackrest/pgbackrest.conf
 Restart=on-failure
