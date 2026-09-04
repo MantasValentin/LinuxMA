@@ -132,6 +132,7 @@ configure_tls_cert() {
             -k /etc/vault.d/tls/vault.key \
             -N "CN=$FQDN" \
             -D "$FQDN" \
+            -D "$VIP_FQDN" \
             -K "vault/$FQDN" \
             -U id-kp-serverAuth \
             -g 4096 \

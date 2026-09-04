@@ -7,6 +7,7 @@ source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/lib/common.sh"
 read -r -s -p $'IPA admin password:\n' IPA_ADMIN_PASSWORD
 
 FQDN=db-proxy-2.lab.internal
+VIP_FQDN=db.lab.internal
 
 NIC=ens34
 
@@ -148,6 +149,7 @@ EOT
             -k "$TLS_KEY" \
             -N "CN=$FQDN" \
             -D "$FQDN" \
+            -D "$VIP_FQDN" \
             -K "db/$FQDN" \
             -U id-kp-serverAuth \
             -U id-kp-clientAuth \
