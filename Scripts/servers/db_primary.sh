@@ -225,7 +225,6 @@ Wants=network-online.target
 
 [Service]
 User=etcd
-Type=notify
 EnvironmentFile=/etc/etcd/etcd.conf
 ExecStart=/usr/local/bin/etcd
 Restart=on-failure
@@ -349,7 +348,6 @@ After=etcd.service network-online.target
 Wants=network-online.target
 
 [Service]
-Type=simple
 User=postgres
 Group=postgres
 ExecStart=/opt/patroni/venv/bin/patroni /etc/patroni/patroni.yml

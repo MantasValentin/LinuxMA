@@ -217,7 +217,6 @@ Wants=network-online.target
 
 [Service]
 User=etcd
-Type=notify
 EnvironmentFile=/etc/etcd/etcd.conf
 ExecStart=/usr/local/bin/etcd
 Restart=on-failure
