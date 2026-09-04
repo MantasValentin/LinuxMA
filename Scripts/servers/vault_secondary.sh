@@ -134,7 +134,6 @@ configure_tls_cert() {
             -D "$FQDN" \
             -K "vault/$FQDN" \
             -U id-kp-serverAuth \
-            -T id-kp-serverAuth \
             -g 4096 \
             -C "/usr/bin/systemctl kill -s HUP vault" \
             -w

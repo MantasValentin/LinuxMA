@@ -159,8 +159,6 @@ EOT
             -K "db/$FQDN" \
             -U id-kp-serverAuth \
             -U id-kp-clientAuth \
-            -T id-kp-serverAuth \
-            -T id-kp-clientAuth \
             -g 4096 \
             -C "/usr/local/bin/db-tls-renew-hook.sh" \
             -w
