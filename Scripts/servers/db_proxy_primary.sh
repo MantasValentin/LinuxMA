@@ -547,13 +547,13 @@ main() {
     configure_packages
     configure_network
     configure_resolver
+    configure_keepalived
     configure_chrony
     configure_ipa_join
     configure_tls_cert
     configure_etcd
     configure_haproxy
     configure_conntrackd
-    configure_keepalived
     configure_firewall
     configure_sshd
 }
