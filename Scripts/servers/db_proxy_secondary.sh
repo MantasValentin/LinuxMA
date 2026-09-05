@@ -121,8 +121,10 @@ configure_ipa_join() {
     fi
 
     kinit admin <<< "$IPA_ADMIN_PASSWORD"
-    ipa service-add "db/$FQDN" --force || true
-    ipa service-add "db/$VIP_FQDN" --force || true
+    ipa service-show "db/$FQDN" >/dev/null 2>&1 ||
+        ipa service-add "db/$FQDN"
+    ipa service-show "db/$VIP_FQDN" >/dev/null 2>&1 ||
+        ipa service-add "db/$VIP_FQDN"
     kdestroy
 
     unset IPA_ADMIN_PASSWORD
