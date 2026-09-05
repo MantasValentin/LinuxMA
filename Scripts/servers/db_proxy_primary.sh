@@ -121,10 +121,9 @@ configure_ipa_join() {
     fi
 
     kinit admin <<< "$IPA_ADMIN_PASSWORD"
-    ipa service-show "db/$FQDN" >/dev/null 2>&1 ||
-        ipa service-add "db/$FQDN"
-    ipa service-show "db/$VIP_FQDN" >/dev/null 2>&1 ||
-        ipa service-add "db/$VIP_FQDN"
+    ipa host-add $VIP_FQDN --force
+    ipa service-add "db/$FQDN" --force
+    ipa service-add "db/$VIP_FQDN" --force
     kdestroy
 
     unset IPA_ADMIN_PASSWORD
@@ -547,13 +546,13 @@ main() {
     configure_packages
     configure_network
     configure_resolver
-    configure_keepalived
     configure_chrony
     configure_ipa_join
     configure_tls_cert
     configure_etcd
     configure_haproxy
     configure_conntrackd
+    configure_keepalived
     configure_firewall
     configure_sshd
 }
