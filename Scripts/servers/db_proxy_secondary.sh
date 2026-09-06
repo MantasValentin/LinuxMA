@@ -121,13 +121,17 @@ configure_ipa_join() {
     fi
 
     kinit admin <<< "$IPA_ADMIN_PASSWORD"
-    ipa host-show "$VIP_FQDN" >/dev/null 2>&1 ||
+    if ! ipa host-show "$VIP_FQDN" >/dev/null 2>&1; then
         ipa host-add "$VIP_FQDN" --force
+    fi
 
-    ipa service-show "db/$FQDN" >/dev/null 2>&1 ||
-        ipa service-add "db/$FQDN"
-    ipa service-show "db/$VIP_FQDN" >/dev/null 2>&1 ||
+    if ! ipa service-show "db/$FQDN" >/dev/null 2>&1; then
+        ipa service-add "db/$FQDN" --force
+    fi
+
+    if ! ipa service-show "db/$VIP_FQDN" >/dev/null 2>&1; then
         ipa service-add "db/$VIP_FQDN" --force
+    fi
 
     ipa service-add-host "db/$VIP_FQDN" --hosts="$FQDN" 2>/dev/null || true
     kdestroy

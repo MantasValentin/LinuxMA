@@ -109,13 +109,18 @@ configure_ipa_join() {
     fi
 
     kinit admin <<< "$IPA_ADMIN_PASSWORD"
-    ipa host-show "$VIP_FQDN" >/dev/null 2>&1 ||
+    
+    if ! ipa host-show "$VIP_FQDN" >/dev/null 2>&1; then
         ipa host-add "$VIP_FQDN" --force
+    fi
 
-    ipa service-show "vault/$FQDN" >/dev/null 2>&1 ||
-        ipa service-add "vault/$FQDN"
-    ipa service-show "vault/$VIP_FQDN" >/dev/null 2>&1 ||
+    if ! ipa service-show "vault/$FQDN" >/dev/null 2>&1; then
+        ipa service-add "vault/$FQDN" --force
+    fi
+
+    if ! ipa service-show "vault/$VIP_FQDN" >/dev/null 2>&1; then
         ipa service-add "vault/$VIP_FQDN" --force
+    fi
 
     ipa service-add-host "vault/$VIP_FQDN" --hosts="$FQDN" 2>/dev/null || true
     kdestroy
