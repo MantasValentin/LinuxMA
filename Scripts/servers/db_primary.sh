@@ -370,14 +370,21 @@ EOT
     sudo systemctl enable patroni
 
     if sudo systemctl is-active --quiet patroni; then
-        sudo -u postgres /opt/patroni/venv/bin/patronictl -c /etc/patroni/patroni.yml edit-config -y \
-            --pg-hba "hostssl replication replicator $PEER_IP_V4/32 scram-sha-256" \
-            --pg-hba "hostssl replication replicator $PEER_IP_V6/128 scram-sha-256" \
-            --pg-hba "hostssl all all 10.0.0.0/24 scram-sha-256" \
-            --pg-hba "hostssl all all fd00:10::/64 scram-sha-256" \
-            --pg-hba "hostnossl all all 0.0.0.0/0 reject" \
-            --pg-hba "hostnossl all all ::/0 reject" \
-            || true
+        PG_HBA_PATCH=$(mktemp)
+        cat > "$PG_HBA_PATCH" <<EOF
+postgresql:
+    pg_hba:
+        - hostssl replication replicator $PEER_IP_V4/32 scram-sha-256
+        - hostssl replication replicator $PEER_IP_V6/128 scram-sha-256
+        - hostssl all all 10.0.0.0/24 scram-sha-256
+        - hostssl all all fd00:10::/64 scram-sha-256
+        - hostnossl all all 0.0.0.0/0 reject
+        - hostnossl all all ::/0 reject
+EOF
+        chmod 644 "$PG_HBA_PATCH"
+        sudo -u postgres /opt/patroni/venv/bin/patronictl -c /etc/patroni/patroni.yml \
+            edit-config --apply "$PG_HBA_PATCH" --force -q || true
+        rm -f "$PG_HBA_PATCH"
     fi
 }
 
@@ -418,6 +425,7 @@ EOT
             edit-config --pg archive_mode=on \
             --pg archive_command='pgbackrest --stanza=pg-cluster --config=/etc/pgbackrest/pgbackrest.conf archive-push %p' \
             --pg restore_command='pgbackrest --stanza=pg-cluster --config=/etc/pgbackrest/pgbackrest.conf archive-get %f "%p"' \
+            --force -q \
             || true
     fi
 
