@@ -109,9 +109,17 @@ configure_ipa_join() {
     fi
 
     kinit admin <<< "$IPA_ADMIN_PASSWORD"
-    ipa service-add "vault/$FQDN" --force || true
-    ipa service-add "vault/$VIP_FQDN" --force || true
+    ipa host-show "$VIP_FQDN" >/dev/null 2>&1 ||
+        ipa host-add "$VIP_FQDN" --force
+
+    ipa service-show "vault/$FQDN" >/dev/null 2>&1 ||
+        ipa service-add "vault/$FQDN"
+    ipa service-show "vault/$VIP_FQDN" >/dev/null 2>&1 ||
+        ipa service-add "vault/$VIP_FQDN" --force
+
+    ipa service-add-host "vault/$VIP_FQDN" --hosts="$FQDN" 2>/dev/null || true
     kdestroy
+
     unset IPA_ADMIN_PASSWORD
 }
 
@@ -133,6 +141,10 @@ configure_tls_cert() {
             -N "CN=$FQDN" \
             -D "$FQDN" \
             -D "$VIP_FQDN" \
+            -A "$LAN_IP_V4" \
+            -A "$LAN_IP_V6" \
+            -A "$VAULT_VIP_V4" \
+            -A "$VAULT_VIP_V6" \
             -K "vault/$FQDN" \
             -U id-kp-serverAuth \
             -g 4096 \

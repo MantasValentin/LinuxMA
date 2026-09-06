@@ -158,6 +158,10 @@ EOT
             -N "CN=$FQDN" \
             -D "$FQDN" \
             -D "$VIP_FQDN" \
+            -A "$LAN_IP_V4" \
+            -A "$LAN_IP_V6" \
+            -A "$VIP_V4" \
+            -A "$VIP_V6" \
             -K "db/$FQDN" \
             -U id-kp-serverAuth \
             -U id-kp-clientAuth \

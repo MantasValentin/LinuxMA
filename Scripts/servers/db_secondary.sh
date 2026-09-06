@@ -156,6 +156,8 @@ EOT
             -k "$TLS_KEY" \
             -N "CN=$FQDN" \
             -D "$FQDN" \
+            -A "$LAN_IP_V4" \
+            -A "$LAN_IP_V6" \
             -K "db/$FQDN" \
             -U id-kp-serverAuth \
             -U id-kp-clientAuth \
@@ -368,8 +370,8 @@ EOT
 }
 
 configure_pgbackrest() {
-    sudo mkdir -p /var/log/pgbackrest
-    sudo chown postgres:postgres /var/log/pgbackrest
+    sudo mkdir -p /var/log/pgbackrest /etc/pgbackrest
+    sudo chown postgres:postgres /var/log/pgbackrest /etc/pgbackrest
 
     write_file_if_changed /etc/pgbackrest/pgbackrest.conf 0640 postgres:postgres <<EOT
 [global]

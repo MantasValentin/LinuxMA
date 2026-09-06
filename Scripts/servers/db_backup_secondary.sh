@@ -132,6 +132,8 @@ EOT
             -k "$TLS_KEY" \
             -N "CN=$FQDN" \
             -D "$FQDN" \
+            -A "$LAN_IP_V4" \
+            -A "$LAN_IP_V6" \
             -K "db/$FQDN" \
             -U id-kp-serverAuth \
             -g 4096 \
