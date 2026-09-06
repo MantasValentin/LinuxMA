@@ -368,6 +368,17 @@ EOT
         sudo systemctl restart patroni
     fi
     sudo systemctl enable patroni
+
+    if sudo systemctl is-active --quiet patroni; then
+        sudo -u postgres /opt/patroni/venv/bin/patronictl -c /etc/patroni/patroni.yml edit-config -y \
+            --pg-hba "hostssl replication replicator $PEER_IP_V4/32 scram-sha-256" \
+            --pg-hba "hostssl replication replicator $PEER_IP_V6/128 scram-sha-256" \
+            --pg-hba "hostssl all all 10.0.0.0/24 scram-sha-256" \
+            --pg-hba "hostssl all all fd00:10::/64 scram-sha-256" \
+            --pg-hba "hostnossl all all 0.0.0.0/0 reject" \
+            --pg-hba "hostnossl all all ::/0 reject" \
+            || true
+    fi
 }
 
 configure_pgbackrest() {
