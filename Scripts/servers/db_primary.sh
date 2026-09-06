@@ -23,8 +23,11 @@ LAN_PREFIX_V6=64
 GATEWAY_V6=fd00:10::1
 PEER_IP_V6=fd00:10::44
 
+DB_PROXY_1_FQDN=db-proxy-1.lab.internal
 DB_PROXY_1_IP_V4=10.0.0.41
 DB_PROXY_1_IP_V6=fd00:10::41
+
+DB_PROXY_2_FQDN=db-proxy-2.lab.internal
 DB_PROXY_2_IP_V4=10.0.0.42
 DB_PROXY_2_IP_V6=fd00:10::42
 
@@ -32,7 +35,7 @@ DB_PROXY_2_IP_V6=fd00:10::42
 NODE_NAME=db-1
 ETCD_NAME=etcd3
 ETCD_VERSION=v3.7.0
-ETCD_CLUSTER="etcd1=https://10.0.0.41:2380,etcd2=https://10.0.0.42:2380,etcd3=https://10.0.0.43:2380,etcd4=https://10.0.0.44:2380"
+ETCD_CLUSTER="etcd1=https://db-proxy-1.lab.internal:2380,etcd2=https://db-proxy-2.lab.internal:2380,etcd3=https://db-1.lab.internal:2380,etcd4=https://db-2.lab.internal:2380"
 
 # PostgreSQL version
 PG_VERSION=18
@@ -158,8 +161,6 @@ EOT
             -k "$TLS_KEY" \
             -N "CN=$FQDN" \
             -D "$FQDN" \
-            -A "$LAN_IP_V4" \
-            -A "$LAN_IP_V6" \
             -K "db/$FQDN" \
             -U id-kp-serverAuth \
             -U id-kp-clientAuth \
@@ -200,10 +201,10 @@ configure_etcd() {
     write_file_if_changed /etc/etcd/etcd.conf 0640 root:etcd <<EOT && changed=1
 ETCD_NAME=$ETCD_NAME
 ETCD_DATA_DIR=/var/lib/etcd
-ETCD_LISTEN_PEER_URLS=https://$LAN_IP_V4:2380
-ETCD_LISTEN_CLIENT_URLS=https://$LAN_IP_V4:2379
-ETCD_INITIAL_ADVERTISE_PEER_URLS=https://$LAN_IP_V4:2380
-ETCD_ADVERTISE_CLIENT_URLS=https://$LAN_IP_V4:2379
+ETCD_LISTEN_PEER_URLS=https://0.0.0.0:2380
+ETCD_LISTEN_CLIENT_URLS=https://0.0.0.0:2379
+ETCD_INITIAL_ADVERTISE_PEER_URLS=https://$FQDN:2380
+ETCD_ADVERTISE_CLIENT_URLS=https://$FQDN:2379
 ETCD_INITIAL_CLUSTER=$ETCD_CLUSTER
 ETCD_INITIAL_CLUSTER_STATE=existing
 ETCD_INITIAL_CLUSTER_TOKEN=pg-etcd-cluster
@@ -267,13 +268,13 @@ name: $NODE_NAME
 
 restapi:
     listen: 0.0.0.0:8008
-    connect_address: $LAN_IP_V4:8008
+    connect_address: $FQDN:8008
     certfile: $TLS_CERT
     keyfile: $TLS_KEY
     cafile: $TLS_CA
 
 etcd3:
-    hosts: 10.0.0.41:2379,10.0.0.42:2379,10.0.0.43:2379,10.0.0.44:2379
+    hosts: $DB_PROXY_1_FQDN:2379,$DB_PROXY_2_FQDN:2379,db-1.lab.internal:2379,db-2.lab.internal:2379
     protocol: https
     cacert: $TLS_CA
     cert: $TLS_CERT
@@ -319,7 +320,7 @@ bootstrap:
 
 postgresql:
     listen: 0.0.0.0:5432
-    connect_address: $LAN_IP_V4:5432
+    connect_address: $FQDN:5432
     data_dir: /var/lib/pgsql/${PG_VERSION}/data
     bin_dir: /usr/pgsql-${PG_VERSION}/bin
     authentication:

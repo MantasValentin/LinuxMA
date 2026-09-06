@@ -109,7 +109,7 @@ configure_ipa_join() {
     fi
 
     kinit admin <<< "$IPA_ADMIN_PASSWORD"
-    
+
     if ! ipa host-show "$VIP_FQDN" >/dev/null 2>&1; then
         ipa host-add "$VIP_FQDN" --force
     fi
@@ -145,10 +145,6 @@ configure_tls_cert() {
             -N "CN=$FQDN" \
             -D "$FQDN" \
             -D "$VIP_FQDN" \
-            -A "$LAN_IP_V4" \
-            -A "$LAN_IP_V6" \
-            -A "$VAULT_VIP_V4" \
-            -A "$VAULT_VIP_V6" \
             -K "vault/$FQDN" \
             -U id-kp-serverAuth \
             -g 4096 \

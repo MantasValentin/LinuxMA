@@ -26,8 +26,11 @@ VIP_PREFIX_V4=24
 VIP_V6=fd00:10::40
 VIP_PREFIX_V6=64
 
+DB_1_FQDN=db-1.lab.internal
 DB_1_IP_V4=10.0.0.43
 DB_1_IP_V6=fd00:10::43
+
+DB_2_FQDN=db-2.lab.internal
 DB_2_IP_V4=10.0.0.44
 DB_2_IP_V6=fd00:10::44
 
@@ -37,7 +40,7 @@ VRRP_AUTH_PASS="PGVRRP_Secret"
 # etcd identity
 ETCD_NAME=etcd1
 ETCD_VERSION=v3.7.0
-ETCD_CLUSTER="etcd1=https://10.0.0.41:2380,etcd2=https://10.0.0.42:2380,etcd3=https://10.0.0.43:2380,etcd4=https://10.0.0.44:2380"
+ETCD_CLUSTER="etcd1=https://db-proxy-1.lab.internal:2380,etcd2=https://db-proxy-2.lab.internal:2380,etcd3=https://db-1.lab.internal:2380,etcd4=https://db-2.lab.internal:2380"
 
 # TLS material issued by the IPA CA
 TLS_CERT=/etc/pki/tls/certs/db-node.pem
@@ -162,10 +165,6 @@ EOT
             -N "CN=$FQDN" \
             -D "$FQDN" \
             -D "$VIP_FQDN" \
-            -A "$LAN_IP_V4" \
-            -A "$LAN_IP_V6" \
-            -A "$VIP_V4" \
-            -A "$VIP_V6" \
             -K "db/$FQDN" \
             -U id-kp-serverAuth \
             -U id-kp-clientAuth \
@@ -206,10 +205,10 @@ configure_etcd() {
     write_file_if_changed /etc/etcd/etcd.conf 0640 root:etcd <<EOT && changed=1
 ETCD_NAME=$ETCD_NAME
 ETCD_DATA_DIR=/var/lib/etcd
-ETCD_LISTEN_PEER_URLS=https://$LAN_IP_V4:2380
-ETCD_LISTEN_CLIENT_URLS=https://$LAN_IP_V4:2379
-ETCD_INITIAL_ADVERTISE_PEER_URLS=https://$LAN_IP_V4:2380
-ETCD_ADVERTISE_CLIENT_URLS=https://$LAN_IP_V4:2379
+ETCD_LISTEN_PEER_URLS=https://0.0.0.0:2380
+ETCD_LISTEN_CLIENT_URLS=https://0.0.0.0:2379
+ETCD_INITIAL_ADVERTISE_PEER_URLS=https://$FQDN:2380
+ETCD_ADVERTISE_CLIENT_URLS=https://$FQDN:2379
 ETCD_INITIAL_CLUSTER=$ETCD_CLUSTER
 ETCD_INITIAL_CLUSTER_STATE=new
 ETCD_INITIAL_CLUSTER_TOKEN=pg-etcd-cluster
@@ -282,8 +281,8 @@ listen pg_write
     option httpchk GET /primary
     http-check expect status 200
     default-server inter 3s fall 3 rise 2 on-marked-down shutdown-sessions check-ssl verify required ca-file $TLS_CA
-    server db-1 $DB_1_IP_V4:5432 maxconn 100 check port 8008
-    server db-2 $DB_2_IP_V4:5432 maxconn 100 check port 8008
+    server db-1 $DB_1_FQDN:5432 maxconn 100 check port 8008
+    server db-2 $DB_2_FQDN:5432 maxconn 100 check port 8008
 
 # Reads to any node that is up, so both share the load
 listen pg_read
@@ -292,8 +291,8 @@ listen pg_read
     option httpchk GET /health
     http-check expect status 200
     default-server inter 3s fall 3 rise 2 check-ssl verify required ca-file $TLS_CA
-    server db-1 $DB_1_IP_V4:5432 maxconn 100 check port 8008
-    server db-2 $DB_2_IP_V4:5432 maxconn 100 check port 8008
+    server db-1 $DB_1_FQDN:5432 maxconn 100 check port 8008
+    server db-2 $DB_2_FQDN:5432 maxconn 100 check port 8008
 EOT
     then
         sudo setsebool -P haproxy_connect_any=1 || true
