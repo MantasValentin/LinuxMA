@@ -309,10 +309,8 @@ bootstrap:
         - data-checksums
 
     pg_hba:
-        - hostssl replication replicator 10.0.0.41/32 scram-sha-256
-        - hostssl replication replicator 10.0.0.42/32 scram-sha-256
-        - hostssl replication replicator fd00:10::41/128 scram-sha-256
-        - hostssl replication replicator fd00:10::42/128 scram-sha-256
+        - hostssl replication replicator $PEER_IP_V4/32 scram-sha-256
+        - hostssl replication replicator $PEER_IP_V6/128 scram-sha-256
         - hostssl all all 10.0.0.0/24 scram-sha-256
         - hostssl all all fd00:10::/64 scram-sha-256
         - hostnossl all all 0.0.0.0/0 reject
@@ -409,7 +407,7 @@ EOT
             edit-config --pg archive_mode=on \
             --pg archive_command='pgbackrest --stanza=pg-cluster --config=/etc/pgbackrest/pgbackrest.conf archive-push %p' \
             --pg restore_command='pgbackrest --stanza=pg-cluster --config=/etc/pgbackrest/pgbackrest.conf archive-get %f "%p"' \
-            || true
+            -y || true
     fi
 
     write_file_if_changed /usr/local/bin/pg_backup_if_primary.sh 0755 root:root <<EOT
