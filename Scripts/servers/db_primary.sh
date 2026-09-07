@@ -439,10 +439,21 @@ EOT
 0 1 * * 1-6 root /usr/local/bin/pg_backup_if_primary.sh diff >> /var/log/pgbackrest/cron.log 2>&1
 EOT
 
-    if sudo systemctl is-active --quiet patroni && \
-        curl -fs --cacert "$TLS_CA" --resolve "$FQDN:8008:127.0.0.1" "https://$FQDN:8008/primary" >/dev/null 2>&1; then
-        sudo -u postgres pgbackrest --stanza=pg-cluster --config=/etc/pgbackrest/pgbackrest.conf \
-            stanza-create 2>/dev/null || true
+    if sudo systemctl is-active --quiet patroni; then
+        stanza_created=0
+        for i in $(seq 1 24); do
+            if curl -fs --cacert "$TLS_CA" --resolve "$FQDN:8008:127.0.0.1" "https://$FQDN:8008/primary" >/dev/null 2>&1; then
+                if sudo -u postgres pgbackrest --stanza=pg-cluster --config=/etc/pgbackrest/pgbackrest.conf stanza-create; then
+                    stanza_created=1
+                fi
+                break
+            fi
+            sleep 5
+        done
+        if [ "$stanza_created" -ne 1 ]; then
+            echo "WARNING: could not confirm this node is primary within 2 minutes (or stanza-create failed); pgbackrest stanza was not created." >&2
+            echo "         Once a primary is established, run manually: sudo -u postgres pgbackrest --stanza=pg-cluster --config=/etc/pgbackrest/pgbackrest.conf stanza-create" >&2
+        fi
     fi
 
     unset DB_BACKUP_PASSWORD
