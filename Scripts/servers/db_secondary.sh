@@ -340,7 +340,7 @@ postgresql:
             sslrootcert: $TLS_CA
     parameters:
         unix_socket_directories: '/var/run/postgresql'
-        archive_mode: "always"
+        archive_mode: "on"
 
 tags:
     nofailover: false
