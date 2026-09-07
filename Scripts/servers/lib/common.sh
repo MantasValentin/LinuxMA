@@ -100,6 +100,24 @@ download_once() {
     fi
 }
 
+wait_for_etcd_health() {
+    local endpoint=$1 cert=$2 key=$3 ca=$4
+    local max_attempts=60 i
+    for ((i = 1; i <= max_attempts; i++)); do
+        if sudo ETCDCTL_API=3 /usr/local/bin/etcdctl \
+            --endpoints="https://${endpoint}:2379" \
+            --cacert="$ca" --cert="$cert" --key="$key" \
+            --dial-timeout=2s \
+            endpoint health &>/dev/null; then
+            return 0
+        fi
+        sleep 2
+    done
+
+    echo "etcd at $endpoint did not report healthy after $((max_attempts * 2))s" >&2
+    return 1
+}
+
 # Runs the function names passed as extra script args, or `main` if none were given
 dispatch() {
     local default_fn=$1

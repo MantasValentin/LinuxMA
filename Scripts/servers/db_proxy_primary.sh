@@ -249,6 +249,8 @@ EOT
         sudo systemctl restart etcd
     fi
     sudo systemctl enable etcd
+
+    wait_for_etcd_health "$FQDN" "$TLS_CERT" "$TLS_KEY" "$TLS_CA"
 }
 
 configure_haproxy() {
