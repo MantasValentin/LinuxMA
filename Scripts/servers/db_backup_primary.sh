@@ -148,14 +148,14 @@ EOT
 }
 
 configure_pgbackrest_repo() {
-    sudo mkdir -p /var/lib/pgbackrest /var/log/pgbackrest /etc/pgbackrest
+    sudo mkdir -p /var/lib/pgbackrest /var/log/pgbackrest/repo-1 /etc/pgbackrest
     sudo chown postgres:postgres /var/lib/pgbackrest /var/log/pgbackrest /etc/pgbackrest
     sudo chmod 750 /var/lib/pgbackrest
 
     local changed=0
     write_file_if_changed /etc/pgbackrest/pgbackrest.conf 0640 postgres:postgres <<EOT && changed=1
 [global]
-repo1-path=/var/lib/pgbackrest
+repo1-path=/var/lib/pgbackrest/repo-1
 repo1-retention-full=2
 repo1-retention-full-type=count
 repo1-retention-diff=7
