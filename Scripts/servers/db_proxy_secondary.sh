@@ -39,7 +39,7 @@ VRRP_AUTH_PASS="PGVRRP_Secret"
 
 # etcd identity
 ETCD_NAME=etcd2
-ETCD_VERSION=v3.7.0
+ETCD_VERSION=v3.5.17
 ETCD_CLUSTER="etcd1=https://db-proxy-1.lab.internal:2380,etcd2=https://db-proxy-2.lab.internal:2380,etcd3=https://db-1.lab.internal:2380,etcd4=https://db-2.lab.internal:2380"
 
 # TLS material issued by the IPA CA

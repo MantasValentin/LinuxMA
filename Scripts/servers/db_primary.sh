@@ -34,7 +34,7 @@ DB_PROXY_2_IP_V6=fd00:10::42
 # Patroni/etcd identity
 NODE_NAME=db-1
 ETCD_NAME=etcd3
-ETCD_VERSION=v3.7.0
+ETCD_VERSION=v3.5.17
 ETCD_CLUSTER="etcd1=https://db-proxy-1.lab.internal:2380,etcd2=https://db-proxy-2.lab.internal:2380,etcd3=https://db-1.lab.internal:2380,etcd4=https://db-2.lab.internal:2380"
 
 # PostgreSQL version
