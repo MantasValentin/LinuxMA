@@ -150,9 +150,9 @@ configure_tls_cert() {
 #!/bin/bash
 set -uo pipefail
 if [ -f /etc/pki/tls/certs/db-node.pem ] && [ -f /etc/pki/tls/private/db-node.key ]; then
-    cat /etc/pki/tls/certs/db-node.pem /etc/pki/tls/private/db-node.key > /etc/pki/tls/certs/db-node-haproxy.pem
-    chown root:pgcerts /etc/pki/tls/certs/db-node-haproxy.pem
-    chmod 640 /etc/pki/tls/certs/db-node-haproxy.pem
+    cat /etc/pki/tls/certs/db-node.pem /etc/pki/tls/private/db-node.key > /etc/pki/tls/certs/db-node-combined.pem
+    chown root:pgcerts /etc/pki/tls/certs/db-node-combined.pem
+    chmod 640 /etc/pki/tls/certs/db-node-combined.pem
 fi
 systemctl try-restart etcd.service 2>/dev/null || true
 systemctl try-restart haproxy.service 2>/dev/null || true
@@ -517,6 +517,10 @@ table inet filter {
 
         # VRRP for the proxy VIP
         meta l4proto vrrp accept
+
+        # conntrackd state sync with the peer proxy node
+        ip saddr $PEER_IP_V4 udp dport 3780 accept
+        ip6 saddr $PEER_IP_V6 udp dport 3780 accept
 
         # SSH only from the management range
         ip saddr 10.0.0.20-10.0.0.29 tcp dport 22 accept

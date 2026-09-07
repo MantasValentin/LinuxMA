@@ -309,6 +309,10 @@ bootstrap:
         - data-checksums
 
     pg_hba:
+        - local all all peer
+        - local replication replicator peer
+        - host all all 127.0.0.1/32 scram-sha-256
+        - host all all ::1/128 scram-sha-256
         - hostssl replication replicator $PEER_IP_V4/32 scram-sha-256
         - hostssl replication replicator $PEER_IP_V6/128 scram-sha-256
         - hostssl all all 10.0.0.0/24 scram-sha-256
@@ -368,24 +372,6 @@ EOT
         sudo systemctl restart patroni
     fi
     sudo systemctl enable patroni
-
-    if sudo systemctl is-active --quiet patroni; then
-        PG_HBA_PATCH=$(mktemp)
-        cat > "$PG_HBA_PATCH" <<EOF
-postgresql:
-    pg_hba:
-        - hostssl replication replicator $PEER_IP_V4/32 scram-sha-256
-        - hostssl replication replicator $PEER_IP_V6/128 scram-sha-256
-        - hostssl all all 10.0.0.0/24 scram-sha-256
-        - hostssl all all fd00:10::/64 scram-sha-256
-        - hostnossl all all 0.0.0.0/0 reject
-        - hostnossl all all ::/0 reject
-EOF
-        chmod 644 "$PG_HBA_PATCH"
-        sudo -u postgres /opt/patroni/venv/bin/patronictl -c /etc/patroni/patroni.yml \
-            edit-config --apply "$PG_HBA_PATCH" --force -q || true
-        rm -f "$PG_HBA_PATCH"
-    fi
 }
 
 configure_pgbackrest() {
@@ -484,8 +470,8 @@ table inet filter {
         ip6 saddr { $LAN_IP_V6, $PEER_IP_V6, $DB_PROXY_1_IP_V6, $DB_PROXY_2_IP_V6 } tcp dport 5432 accept
 
         # Patroni REST API
-        ip saddr { $LAN_IP_V4, $PEER_IP_V4 } tcp dport 8008 accept
-        ip6 saddr { $LAN_IP_V6, $PEER_IP_V6 } tcp dport 8008 accept
+        ip saddr { $LAN_IP_V4, $PEER_IP_V4, $DB_PROXY_1_IP_V4, $DB_PROXY_2_IP_V4 } tcp dport 8008 accept
+        ip6 saddr { $LAN_IP_V6, $PEER_IP_V6, $DB_PROXY_1_IP_V6, $DB_PROXY_2_IP_V6 } tcp dport 8008 accept
 
         # etcd peers
         ip saddr { $LAN_IP_V4, $PEER_IP_V4, $DB_PROXY_1_IP_V4, $DB_PROXY_2_IP_V4 } tcp dport { 2379, 2380 } accept
