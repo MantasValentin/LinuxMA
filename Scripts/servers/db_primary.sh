@@ -315,6 +315,8 @@ bootstrap:
         - local replication replicator peer
         - host all all 127.0.0.1/32 scram-sha-256
         - host all all ::1/128 scram-sha-256
+        - hostssl replication replicator $LAN_IP_V4/32 scram-sha-256
+        - hostssl replication replicator $LAN_IP_V6/128 scram-sha-256
         - hostssl replication replicator $PEER_IP_V4/32 scram-sha-256
         - hostssl replication replicator $PEER_IP_V6/128 scram-sha-256
         - hostssl all all 10.0.0.0/24 scram-sha-256
