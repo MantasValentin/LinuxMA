@@ -438,8 +438,9 @@ logger "pg_backup: \${TYPE} backup complete"
 EOT
 
     write_file_if_changed /etc/cron.d/pgbackrest 0644 root:root <<EOT
-0 1 * * 0 root /usr/local/bin/pg_backup_if_primary.sh full   >> /var/log/pgbackrest/cron.log 2>&1
-0 1 * * 1-6 root /usr/local/bin/pg_backup_if_primary.sh diff >> /var/log/pgbackrest/cron.log 2>&1
+0 1 * * 0     root /usr/local/bin/pg_backup_if_primary.sh full  >> /var/log/pgbackrest/cron.log 2>&1
+0 1 * * 1-6   root /usr/local/bin/pg_backup_if_primary.sh diff  >> /var/log/pgbackrest/cron.log 2>&1
+0 */6 * * *   root /usr/local/bin/pg_backup_if_primary.sh incr  >> /var/log/pgbackrest/cron.log 2>&1
 EOT
 
     if sudo systemctl is-active --quiet patroni; then

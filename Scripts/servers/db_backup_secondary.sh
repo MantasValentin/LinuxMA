@@ -156,15 +156,17 @@ configure_pgbackrest_repo() {
     write_file_if_changed /etc/pgbackrest/pgbackrest.conf 0640 postgres:postgres <<EOT && changed=1
 [global]
 repo2-path=/var/lib/pgbackrest/repo-2
-repo2-retention-full=2
 repo2-retention-full-type=count
+repo2-retention-full=2
 repo2-retention-diff=7
+repo2-retention-archive-type=full
+repo2-retention-archive=2
 log-path=/var/log/pgbackrest
 process-max=2
 compress-type=zst
 
-repo1-cipher-type=aes-256-cbc
-repo1-cipher-pass=$DB_BACKUP_PASSWORD
+repo2-cipher-type=aes-256-cbc
+repo2-cipher-pass=$DB_BACKUP_PASSWORD
 
 tls-server-address=*
 tls-server-cert-file=$TLS_CERT
