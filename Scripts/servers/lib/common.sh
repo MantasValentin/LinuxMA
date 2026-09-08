@@ -100,6 +100,7 @@ download_once() {
     fi
 }
 
+# Blocks until the local etcd endpoint reports itself healthy
 wait_for_etcd_health() {
     local endpoint=$1 cert=$2 key=$3 ca=$4
     local max_attempts=60 i
@@ -116,6 +117,33 @@ wait_for_etcd_health() {
 
     echo "etcd at $endpoint did not report healthy after $((max_attempts * 2))s" >&2
     return 1
+}
+
+# Registers this node as a member of an etcd cluster
+etcd_join_existing_cluster() {
+    local name=$1 peer_url=$2 seed_endpoints=$3 cert=$4 key=$5 ca=$6
+
+    local old_id
+    old_id=$(sudo /usr/local/bin/etcdctl \
+        --cacert="$ca" --cert="$cert" --key="$key" --endpoints="$seed_endpoints" \
+        member list 2>/dev/null | awk -F', ' -v n="$name" '$3 == n {print $1}')
+    if [ -n "$old_id" ]; then
+        sudo /usr/local/bin/etcdctl \
+            --cacert="$ca" --cert="$cert" --key="$key" --endpoints="$seed_endpoints" \
+            member remove "$old_id" || true
+    fi
+
+    sudo /usr/local/bin/etcdctl \
+        --cacert="$ca" --cert="$cert" --key="$key" --endpoints="$seed_endpoints" \
+        member add "$name" --peer-urls="$peer_url"
+}
+
+# Prints the cluster's current memberships
+etcd_current_member_list() {
+    local seed_endpoints=$1 cert=$2 key=$3 ca=$4
+    sudo /usr/local/bin/etcdctl \
+        --cacert="$ca" --cert="$cert" --key="$key" --endpoints="$seed_endpoints" \
+        member list | awk -F', ' '{print $3"="$4}' | paste -sd,
 }
 
 # Runs the function names passed as extra script args, or `main` if none were given
