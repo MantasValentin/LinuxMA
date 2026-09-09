@@ -33,14 +33,9 @@ DB_PROXY_2_IP_V6=fd00:10::42
 
 # Patroni/etcd identity
 NODE_NAME=db-2
-
-# etcd identity
 ETCD_NAME=etcd4
 ETCD_VERSION=v3.5.17
-
-# This node joins the cluster
-ETCD_BOOTSTRAP=existing
-ETCD_SEED_ENDPOINTS="https://db-proxy-1.lab.internal:2379,https://db-proxy-2.lab.internal:2379,https://db-1.lab.internal:2379"
+ETCD_CLUSTER="etcd1=https://db-proxy-1.lab.internal:2380,etcd2=https://db-proxy-2.lab.internal:2380,etcd3=https://db-1.lab.internal:2380,etcd4=https://db-2.lab.internal:2380"
 
 # PostgreSQL version
 PG_VERSION=18
@@ -202,20 +197,6 @@ configure_etcd() {
     sudo chown etcd:etcd /var/lib/etcd
 
     sudo mkdir -p /etc/etcd
-    local initial_cluster initial_cluster_state
-    if [ -d /var/lib/etcd/member ]; then
-        initial_cluster="$ETCD_NAME=https://$FQDN:2380"
-        initial_cluster_state=existing
-    elif [ "$ETCD_BOOTSTRAP" = "new" ]; then
-        initial_cluster="$ETCD_NAME=https://$FQDN:2380"
-        initial_cluster_state=new
-    else
-        echo "Joining existing etcd cluster as $ETCD_NAME..."
-        etcd_join_existing_cluster "$ETCD_NAME" "https://$FQDN:2380" "$ETCD_SEED_ENDPOINTS" "$TLS_CERT" "$TLS_KEY" "$TLS_CA"
-        initial_cluster=$(etcd_current_member_list "$ETCD_SEED_ENDPOINTS" "$TLS_CERT" "$TLS_KEY" "$TLS_CA")
-        initial_cluster_state=existing
-    fi
-
     local changed=0
     write_file_if_changed /etc/etcd/etcd.conf 0640 root:etcd <<EOT && changed=1
 ETCD_NAME=$ETCD_NAME
@@ -224,8 +205,8 @@ ETCD_LISTEN_PEER_URLS=https://0.0.0.0:2380
 ETCD_LISTEN_CLIENT_URLS=https://0.0.0.0:2379
 ETCD_INITIAL_ADVERTISE_PEER_URLS=https://$FQDN:2380
 ETCD_ADVERTISE_CLIENT_URLS=https://$FQDN:2379
-ETCD_INITIAL_CLUSTER=$initial_cluster
-ETCD_INITIAL_CLUSTER_STATE=$initial_cluster_state
+ETCD_INITIAL_CLUSTER=$ETCD_CLUSTER
+ETCD_INITIAL_CLUSTER_STATE=new
 ETCD_INITIAL_CLUSTER_TOKEN=pg-etcd-cluster
 
 ETCD_CERT_FILE=$TLS_CERT
