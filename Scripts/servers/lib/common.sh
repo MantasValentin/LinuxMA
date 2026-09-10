@@ -139,27 +139,32 @@ etcdctl_retry() {
     return "$rc"
 }
 
-# Registers this node as a member of an etcd cluster
+# Registers this node as a member of an etcd cluster and returns the initial_cluster
 etcd_join_existing_cluster() {
     local name=$1 peer_url=$2 seed_endpoints=$3 cert=$4 key=$5 ca=$6
 
-    local member_list old_id
+    local member_list old_id initial_cluster
+
     member_list=$(etcdctl_retry "$seed_endpoints" "$cert" "$key" "$ca" member list) || {
         echo "Could not reach any etcd seed endpoint ($seed_endpoints) to join the cluster as $name" >&2
         return 1
     }
+
     old_id=$(printf '%s' "$member_list" | awk -F', ' -v n="$name" '$3 == n {print $1}')
+
     if [ -n "$old_id" ]; then
         etcdctl_retry "$seed_endpoints" "$cert" "$key" "$ca" member remove "$old_id" || true
     fi
 
-    etcdctl_retry "$seed_endpoints" "$cert" "$key" "$ca" member add "$name" --peer-urls="$peer_url" >/dev/null
-}
+    etcdctl_retry "$seed_endpoints" "$cert" "$key" "$ca" member add "$name" --peer-urls="$peer_url" || {
+        echo "Failed to add $name ($peer_url) to the etcd cluster" >&2
+        return 1
+    }
 
-# Prints the cluster's current memberships
-etcd_current_member_list() {
-    local seed_endpoints=$1 cert=$2 key=$3 ca=$4
-    etcdctl_retry "$seed_endpoints" "$cert" "$key" "$ca" member list | awk -F', ' '{print $3"="$4}' | paste -sd,
+    initial_cluster=$(printf '%s' "$member_list" | awk -F', ' '{print $3"="$4}' | paste -sd,)
+    initial_cluster="${initial_cluster},${name}=${peer_url}"
+
+    echo "$initial_cluster"
 }
 
 # Runs the function names passed as extra script args, or `main` if none were given

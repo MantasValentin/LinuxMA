@@ -203,16 +203,12 @@ configure_etcd() {
 
     sudo mkdir -p /etc/etcd
     local initial_cluster initial_cluster_state
-    if [ -d /var/lib/etcd/member ]; then
-        initial_cluster="$ETCD_NAME=https://$FQDN:2380"
-        initial_cluster_state=existing
-    elif [ "$ETCD_BOOTSTRAP" = "new" ]; then
+    if [ "$ETCD_BOOTSTRAP" = "new" ]; then
         initial_cluster="$ETCD_NAME=https://$FQDN:2380"
         initial_cluster_state=new
-    else
+    elif [ "$ETCD_BOOTSTRAP" = "new" ]; then
         echo "Joining existing etcd cluster as $ETCD_NAME..."
-        etcd_join_existing_cluster "$ETCD_NAME" "https://$FQDN:2380" "$ETCD_SEED_ENDPOINTS" "$TLS_CERT" "$TLS_KEY" "$TLS_CA"
-        initial_cluster=$(etcd_current_member_list "$ETCD_SEED_ENDPOINTS" "$TLS_CERT" "$TLS_KEY" "$TLS_CA")
+        initial_cluster=$(etcd_join_existing_cluster "$ETCD_NAME" "https://$FQDN:2380" "$ETCD_SEED_ENDPOINTS" "$TLS_CERT" "$TLS_KEY" "$TLS_CA")
         initial_cluster_state=existing
     fi
 
