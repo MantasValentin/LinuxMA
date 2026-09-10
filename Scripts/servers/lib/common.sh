@@ -143,7 +143,7 @@ etcdctl_retry() {
 etcd_join_existing_cluster() {
     local name=$1 peer_url=$2 seed_endpoints=$3 cert=$4 key=$5 ca=$6
 
-    local member_list old_id initial_cluster
+    local member_list old_id cluster
 
     member_list=$(etcdctl_retry "$seed_endpoints" "$cert" "$key" "$ca" member list) || {
         echo "Could not reach any etcd seed endpoint ($seed_endpoints) to join the cluster as $name" >&2
@@ -161,10 +161,10 @@ etcd_join_existing_cluster() {
         return 1
     }
 
-    initial_cluster=$(printf '%s' "$member_list" | awk -F', ' '{print $3"="$4}' | paste -sd,)
-    initial_cluster="${initial_cluster},${name}=${peer_url}"
+    cluster=$(printf '%s' "$member_list" | awk -F', ' '{print $3"="$4}' | paste -sd,)
+    cluster="${cluster},${name}=${peer_url}"
 
-    echo "$initial_cluster"
+    echo "$cluster"
 }
 
 # Runs the function names passed as extra script args, or `main` if none were given
