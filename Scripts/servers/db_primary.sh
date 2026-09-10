@@ -439,7 +439,7 @@ EOT
 #!/bin/bash
 # Runs a pgBackRest backup only if node is currently the Patroni leader
 set -euo pipefail
-TYPE=\$1   # full or diff
+TYPE=\$1   # full or diff or incr
 
 if ! curl -fs --cacert $TLS_CA --resolve "$FQDN:8008:127.0.0.1" "https://$FQDN:8008/primary" > /dev/null 2>&1; then
     logger "pg_backup: not primary, skipping \${TYPE} backup"
