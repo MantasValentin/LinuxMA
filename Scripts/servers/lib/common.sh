@@ -119,31 +119,47 @@ wait_for_etcd_health() {
     return 1
 }
 
+# Runs an etcdctl command against $seed_endpoints, retrying for a while if it fails
+etcdctl_retry() {
+    local seed_endpoints=$1 cert=$2 key=$3 ca=$4
+    shift 4
+    local max_attempts=30 i out rc=0
+    for ((i = 1; i <= max_attempts; i++)); do
+        if out=$(sudo /usr/local/bin/etcdctl \
+            --cacert="$ca" --cert="$cert" --key="$key" --endpoints="$seed_endpoints" \
+            --dial-timeout=5s --command-timeout=10s \
+            "$@" 2>&1); then
+            printf '%s\n' "$out"
+            return 0
+        fi
+        rc=$?
+        echo "etcdctl $* failed (attempt $i/$max_attempts): $out" >&2
+        sleep 5
+    done
+    return "$rc"
+}
+
 # Registers this node as a member of an etcd cluster
 etcd_join_existing_cluster() {
     local name=$1 peer_url=$2 seed_endpoints=$3 cert=$4 key=$5 ca=$6
 
-    local old_id
-    old_id=$(sudo /usr/local/bin/etcdctl \
-        --cacert="$ca" --cert="$cert" --key="$key" --endpoints="$seed_endpoints" \
-        member list 2>/dev/null | awk -F', ' -v n="$name" '$3 == n {print $1}')
+    local member_list old_id
+    member_list=$(etcdctl_retry "$seed_endpoints" "$cert" "$key" "$ca" member list) || {
+        echo "Could not reach any etcd seed endpoint ($seed_endpoints) to join the cluster as $name" >&2
+        return 1
+    }
+    old_id=$(printf '%s' "$member_list" | awk -F', ' -v n="$name" '$3 == n {print $1}')
     if [ -n "$old_id" ]; then
-        sudo /usr/local/bin/etcdctl \
-            --cacert="$ca" --cert="$cert" --key="$key" --endpoints="$seed_endpoints" \
-            member remove "$old_id" || true
+        etcdctl_retry "$seed_endpoints" "$cert" "$key" "$ca" member remove "$old_id" || true
     fi
 
-    sudo /usr/local/bin/etcdctl \
-        --cacert="$ca" --cert="$cert" --key="$key" --endpoints="$seed_endpoints" \
-        member add "$name" --peer-urls="$peer_url"
+    etcdctl_retry "$seed_endpoints" "$cert" "$key" "$ca" member add "$name" --peer-urls="$peer_url" >/dev/null
 }
 
 # Prints the cluster's current memberships
 etcd_current_member_list() {
     local seed_endpoints=$1 cert=$2 key=$3 ca=$4
-    sudo /usr/local/bin/etcdctl \
-        --cacert="$ca" --cert="$cert" --key="$key" --endpoints="$seed_endpoints" \
-        member list | awk -F', ' '{print $3"="$4}' | paste -sd,
+    etcdctl_retry "$seed_endpoints" "$cert" "$key" "$ca" member list | awk -F', ' '{print $3"="$4}' | paste -sd,
 }
 
 # Runs the function names passed as extra script args, or `main` if none were given
