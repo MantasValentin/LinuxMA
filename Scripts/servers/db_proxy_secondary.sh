@@ -39,7 +39,7 @@ VRRP_AUTH_PASS="PGVRRP_Secret"
 
 # etcd identity
 ETCD_NAME=etcd2
-ETCD_VERSION=v3.5.17
+ETCD_VERSION=v3.7.1
 
 # This node joins the cluster
 ETCD_BOOTSTRAP=existing

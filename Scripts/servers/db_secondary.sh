@@ -36,7 +36,7 @@ NODE_NAME=db-2
 
 # etcd identity
 ETCD_NAME=etcd4
-ETCD_VERSION=v3.5.17
+ETCD_VERSION=v3.7.1
 
 # This node joins the cluster
 ETCD_BOOTSTRAP=existing
