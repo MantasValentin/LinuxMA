@@ -206,7 +206,7 @@ configure_etcd() {
     if [ "$ETCD_BOOTSTRAP" = "new" ]; then
         initial_cluster="$ETCD_NAME=https://$FQDN:2380"
         initial_cluster_state=new
-    elif [ "$ETCD_BOOTSTRAP" = "new" ]; then
+    else
         echo "Joining existing etcd cluster as $ETCD_NAME..."
         initial_cluster=$(etcd_join_existing_cluster "$ETCD_NAME" "https://$FQDN:2380" "$ETCD_SEED_ENDPOINTS" "$TLS_CERT" "$TLS_KEY" "$TLS_CA")
         initial_cluster_state=existing
