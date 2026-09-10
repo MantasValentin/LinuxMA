@@ -150,21 +150,36 @@ etcd_join_existing_cluster() {
         return 1
     }
 
-    old_id=$(printf '%s' "$member_list" | awk -F', ' -v n="$name" '$3 == n {print $1}')
+    old_id=$(printf '%s\n' "$member_list" |
+        awk -F', ' -v n="$name" '$3 == n {print $1}')
 
     if [ -n "$old_id" ]; then
-        etcdctl_retry "$seed_endpoints" "$cert" "$key" "$ca" member remove "$old_id" || true
+        echo "Member $name already exists with ID $old_id; removing it..." >&2
+
+        etcdctl_retry "$seed_endpoints" "$cert" "$key" "$ca" \
+            member remove "$old_id" || {
+            echo "Failed to remove existing member $name ($old_id)" >&2
+            return 1
+        }
     fi
 
-    etcdctl_retry "$seed_endpoints" "$cert" "$key" "$ca" member add "$name" --peer-urls="$peer_url" || {
+    initial_cluster=$(printf '%s\n' "$member_list" |
+        awk -F', ' -v n="$name" '$3 != n {print $3"="$4}' |
+        paste -sd,)
+
+    etcdctl_retry "$seed_endpoints" "$cert" "$key" "$ca" \
+        member add "$name" --peer-urls="$peer_url" || {
         echo "Failed to add $name ($peer_url) to the etcd cluster" >&2
         return 1
     }
 
-    initial_cluster=$(printf '%s' "$member_list" | awk -F', ' '{print $3"="$4}' | paste -sd,)
-    initial_cluster="${initial_cluster},${name}=${peer_url}"
+    if [ -n "$initial_cluster" ]; then
+        initial_cluster="${initial_cluster},${name}=${peer_url}"
+    else
+        initial_cluster="${name}=${peer_url}"
+    fi
 
-    echo "$initial_cluster"
+    printf '%s\n' "$initial_cluster"
 }
 
 # Runs the function names passed as extra script args, or `main` if none were given
