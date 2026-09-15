@@ -506,29 +506,30 @@ EOT
 
 export_trust_anchors() {
     local zones=(lab.internal 0.0.10.in-addr.arpa 0.0.0.0.0.0.0.0.0.1.0.0.0.0.d.f.ip6.arpa)
-    local zone keyfile attempt line body tmp
+    local zone rr flags proto alg key attempt line body tmp
 
     body=""
     for zone in "${zones[@]}"; do
-        keyfile=""
+        rr=""
         for attempt in $(seq 1 30); do
-            keyfile=$(sudo find /var/named/keys -maxdepth 1 -name "K${zone}.+*.key" 2>/dev/null \
-                | xargs -r sudo grep -l 'IN[[:space:]]\+DNSKEY[[:space:]]\+257' 2>/dev/null | head -n1)
-            [ -n "$keyfile" ] && break
+            # Ask named itself for the DNSKEY over the wire. dig's +short
+            # output is always one clean "flags proto alg base64" line per
+            # key, regardless of how named formats the on-disk K*.key file
+            # (comments, line-wrapping, etc.), so this is far more robust
+            # than parsing the key file directly.
+            rr=$(dig +time=2 +tries=1 @127.0.0.1 "$zone" DNSKEY +short 2>/dev/null | awk '$1==257{print; exit}')
+            [ -n "$rr" ] && break
             sleep 2
         done
 
-        if [ -z "$keyfile" ]; then
-            echo "ERROR: no signed DNSKEY (flag 257) found for zone '$zone' under /var/named/keys." >&2
+        if [ -z "$rr" ]; then
+            echo "ERROR: no DNSKEY (flag 257) returned for zone '$zone' from the local resolver." >&2
             echo "Check 'sudo rndc dnssec -status $zone' and 'sudo journalctl -u named' for signing errors." >&2
             exit 1
         fi
 
-        line=$(sudo awk '$3=="DNSKEY"{print $1, "initial-key", $4, $5, $6, "\"" $7 "\"" ; exit}' "$keyfile")
-        if [ -z "$line" ]; then
-            echo "ERROR: could not parse DNSKEY record out of $keyfile" >&2
-            exit 1
-        fi
+        read -r flags proto alg key <<<"$rr"
+        line="${zone}. initial-key ${flags} ${proto} ${alg} \"${key}\""
         body+="    ${line};"$'\n'
     done
 
