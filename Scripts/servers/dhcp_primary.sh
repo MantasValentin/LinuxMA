@@ -4,15 +4,15 @@ set -euo pipefail
 
 source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/lib/common.sh"
 
-FQDN=dhcp.lab.internal
+FQDN=dhcp-1.lab.internal
 
 NIC=ens34
 
-LAN_IP_V4=10.0.0.4
+LAN_IP_V4=10.0.0.12
 LAN_PREFIX_V4=24
 GATEWAY_V4=10.0.0.1
 
-LAN_IP_V6=fd00:10::4
+LAN_IP_V6=fd00:10::12
 LAN_PREFIX_V6=64
 GATEWAY_V6=fd00:10::1
 LAN_PREFIX_NET_V6=fd00:10

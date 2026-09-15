@@ -75,6 +75,10 @@ configure_tsig_key() {
     sudo chmod 640 /etc/named/tsig-xfer.key
 }
 
+configure_dnssec_key_directory() {
+    sudo install -d -o root -g named -m 0770 /var/named/keys
+}
+
 configure_named_options() {
     NAMED_CHANGED=0
 
@@ -86,6 +90,7 @@ EOT
     write_file_if_changed /etc/named/named.conf.options 0644 root:named <<EOT && NAMED_CHANGED=1
 options {
     directory "/var/named";
+    key-directory "/var/named/keys";
     recursion no;
     allow-query { localhost; 10.0.0.0/24; fd00:10::/64; };
     listen-on { any; };
@@ -104,6 +109,7 @@ zone "lab.internal" {
     file "/var/named/db.lab.internal";
     allow-update { none; };
     allow-transfer { key xfer-key; };
+    dnssec-policy default;
     notify yes;
 };
 
@@ -112,6 +118,7 @@ zone "0.0.10.in-addr.arpa" {
     file "/var/named/db.10.0.0";
     allow-update { none; };
     allow-transfer { key xfer-key; };
+    dnssec-policy default;
     notify yes;
 };
 
@@ -120,6 +127,7 @@ zone "0.0.0.0.0.0.0.0.0.1.0.0.0.0.d.f.ip6.arpa" {
     file "/var/named/db.fd00.10";
     allow-update { none; };
     allow-transfer { key xfer-key; };
+    dnssec-policy default;
     notify yes;
 };
 
@@ -151,27 +159,108 @@ configure_zones() {
 
 ; 10.0.0.1 / fd00:10::1 is reserved for the firewall virtual IP
 
-; Firewall, firewall VIP is 1
-firewall     IN      A       10.0.0.1
-firewall     IN      AAAA    fd00:10::1
-firewall-1    IN      A       10.0.0.2
-firewall-1    IN      AAAA    fd00:10::2
-firewall-2    IN      A       10.0.0.3
-firewall-2    IN      AAAA    fd00:10::3
+; Firewall, VIP is 1
+firewall                 IN       A        10.0.0.1
+firewall                 IN       AAAA     fd00:10::1
+firewall-1               IN       A        10.0.0.2
+firewall-1               IN       AAAA     fd00:10::2
+firewall-2               IN       A        10.0.0.3
+firewall-2               IN       AAAA     fd00:10::3
 
-; DHCP
-dhcp      IN      A       10.0.0.4
-dhcp      IN      AAAA    fd00:10::4
+; VPN
+vpn                      IN       A        10.0.0.4
+vpn                      IN       AAAA     fd00:10::4
 
 ; IPA
-ipa-1        IN      A       10.0.0.5
-ipa-1        IN      AAAA    fd00:10::5
-ipa-2        IN      A       10.0.0.6
-ipa-2        IN      AAAA    fd00:10::6
-ipa-ca      IN      A       10.0.0.5
-ipa-ca      IN      A       10.0.0.6
-ipa-ca      IN      AAAA    fd00:10::5
-ipa-ca      IN      AAAA    fd00:10::6
+ipa-1                    IN       A        10.0.0.5
+ipa-1                    IN       AAAA     fd00:10::5
+ipa-2                    IN       A        10.0.0.6
+ipa-2                    IN       AAAA     fd00:10::6
+ipa-ca                   IN       A        10.0.0.5
+ipa-ca                   IN       AAAA     fd00:10::5
+ipa-ca                   IN       A        10.0.0.6
+ipa-ca                   IN       AAAA     fd00:10::6
+
+; Authoritative DNS
+dns-1                    IN       A        10.0.0.7
+dns-1                    IN       AAAA     fd00:10::7
+ns-1                     IN       A        10.0.0.7
+ns-1                     IN       AAAA     fd00:10::7
+dns-2                    IN       A        10.0.0.8
+dns-2                    IN       AAAA     fd00:10::8
+ns-2                     IN       A        10.0.0.8
+ns-2                     IN       AAAA     fd00:10::8
+
+; HashiCorp Vault, VIP is 9
+vault                    IN       A        10.0.0.9
+vault                    IN       AAAA     fd00:10::9
+vault-1                  IN       A        10.0.0.10
+vault-1                  IN       AAAA     fd00:10::10
+vault-2                  IN       A        10.0.0.11
+vault-2                  IN       AAAA     fd00:10::11
+
+; DHCP
+dhcp-1                   IN       A        10.0.0.12
+dhcp-1                   IN       AAAA     fd00:10::12
+dhcp-2                   IN       A        10.0.0.13
+dhcp-2                   IN       AAAA     fd00:10::13
+
+; Mail servers, VIP is 14
+mail                     IN       A        10.0.0.14
+mail                     IN       AAAA     fd00:10::14
+mail-1                   IN       A        10.0.0.15
+mail-1                   IN       AAAA     fd00:10::15
+mail-2                   IN       A        10.0.0.16
+mail-2                   IN       AAAA     fd00:10::16
+
+; Git servers, VIP is 17
+git                      IN       A        10.0.0.17
+git                      IN       AAAA     fd00:10::17
+git-1                    IN       A        10.0.0.18
+git-1                    IN       AAAA     fd00:10::18
+git-2                    IN       A        10.0.0.19
+git-2                    IN       AAAA     fd00:10::19
+
+; Management
+admin-1                  IN       A        10.0.0.20
+admin-1                  IN       AAAA     fd00:10::20
+
+; Logs, analytics
+logs                     IN       A        10.0.0.30
+logs                     IN       AAAA     fd00:10::30
+analytics                IN       A        10.0.0.31
+analytics                IN       AAAA     fd00:10::31
+
+; Database, VIP is 40
+db                       IN       A        10.0.0.40
+db                       IN       AAAA     fd00:10::40
+db-proxy-1               IN       A        10.0.0.41
+db-proxy-1               IN       AAAA     fd00:10::41
+db-proxy-2               IN       A        10.0.0.42
+db-proxy-2               IN       AAAA     fd00:10::42
+db-1                     IN       A        10.0.0.43
+db-1                     IN       AAAA     fd00:10::43
+db-2                     IN       A        10.0.0.44
+db-2                     IN       AAAA     fd00:10::44
+db-backup-1              IN       A        10.0.0.45
+db-backup-1              IN       AAAA     fd00:10::45
+db-backup-2              IN       A        10.0.0.46
+db-backup-2              IN       AAAA     fd00:10::46
+
+; Recursive DNS resolver
+dns-rslv-1               IN       A        10.0.0.53
+dns-rslv-1               IN       AAAA     fd00:10::53
+dns-rslv-2               IN       A        10.0.0.54
+dns-rslv-2               IN       AAAA     fd00:10::54
+
+; Reverse Proxy
+proxy                    IN       A        10.0.0.60
+proxy                    IN       AAAA     fd00:10::60
+
+; Apps
+app-1                    IN       A        10.0.0.70
+app-1                    IN       AAAA     fd00:10::70
+
 
 ; Kerberos/LDAP service discovery
 _kerberos-master._tcp.lab.internal. IN SRV 0 100 88  ipa-1.lab.internal.
@@ -187,70 +276,12 @@ _kpasswd._udp.lab.internal.         IN SRV 0 100 464 ipa-2.lab.internal.
 _ldap._tcp.lab.internal.            IN SRV 0 100 389 ipa-1.lab.internal.
 _ldap._tcp.lab.internal.            IN SRV 0 100 389 ipa-2.lab.internal.
 _kerberos.lab.internal.             IN TXT "LAB.INTERNAL"
-
-; Authoritative DNS
-dns-1        IN      A       10.0.0.7
-dns-1        IN      AAAA    fd00:10::7
-ns-1         IN      A       10.0.0.7
-ns-1         IN      AAAA    fd00:10::7
-dns-2        IN      A       10.0.0.8
-dns-2        IN      AAAA    fd00:10::8
-ns-2         IN      A       10.0.0.8
-ns-2         IN      AAAA    fd00:10::8
-
-; HashiCorp Vault, vault VIP is 9
-vault       IN      A       10.0.0.9
-vault       IN      AAAA    fd00:10::9
-vault-1      IN      A       10.0.0.10
-vault-1      IN      AAAA    fd00:10::10
-vault-2      IN      A       10.0.0.11
-vault-2      IN      AAAA    fd00:10::11
-
-; Management
-admin-1       IN      A       10.0.0.20
-admin-1       IN      AAAA    fd00:10::20
-
-; Logs, analytics
-logs        IN      A       10.0.0.30
-logs        IN      AAAA    fd00:10::30
-analytics   IN      A       10.0.0.31
-analytics   IN      AAAA    fd00:10::31
-
-; Database, db VIP is 40
-db           IN      A       10.0.0.40
-db           IN      AAAA    fd00:10::40
-db-proxy-1    IN      A       10.0.0.41
-db-proxy-1    IN      AAAA    fd00:10::41
-db-proxy-2    IN      A       10.0.0.42
-db-proxy-2    IN      AAAA    fd00:10::42
-db-1          IN      A       10.0.0.43
-db-1          IN      AAAA    fd00:10::43
-db-2          IN      A       10.0.0.44
-db-2          IN      AAAA    fd00:10::44
-db-backup-1   IN      A       10.0.0.45
-db-backup-1   IN      AAAA    fd00:10::45
-db-backup-2   IN      A       10.0.0.46
-db-backup-2   IN      AAAA    fd00:10::46
-
-; Recursive DNS resolver
-dns-rslv-1    IN      A       10.0.0.53
-dns-rslv-1    IN      AAAA    fd00:10::53
-dns-rslv-2    IN      A       10.0.0.54
-dns-rslv-2    IN      AAAA    fd00:10::54
-
-; Reverse Proxy
-proxy       IN      A       10.0.0.60
-proxy       IN      AAAA    fd00:10::60
-
-; Apps
-app-1         IN      A       10.0.0.70
-app-1         IN      AAAA    fd00:10::70
 EOT
 
     write_file_if_changed /var/named/db.10.0.0 0644 root:named <<EOT && ZONE_DATA_CHANGED=1
 \$TTL    3600
 @       IN      SOA     ns-1.lab.internal. dns-admin.lab.internal. (
-                             $ZONE_SERIAL  ; Serial YYYYMMDDnn
+                           $ZONE_SERIAL    ; Serial YYYYMMDDnn
                                    3600    ; Refresh (1 hour)
                                     900    ; Retry (15 min)
                                  604800    ; Expire (1 week)
@@ -265,23 +296,37 @@ EOT
 2       IN      PTR     firewall-1.lab.internal.
 3       IN      PTR     firewall-2.lab.internal.
 
-; DHCP
-4       IN      PTR     dhcp.lab.internal.
+; VPN
+4       IN      PTR     vpn.lab.internal.
 
 ; IPA
 5       IN      PTR     ipa-1.lab.internal.
 6       IN      PTR     ipa-2.lab.internal.
 
 ; Authoritative DNS
-7      IN      PTR     dns-1.lab.internal.
-7      IN      PTR     ns-1.lab.internal.
-8      IN      PTR     dns-2.lab.internal.
-8      IN      PTR     ns-2.lab.internal.
+7       IN      PTR     dns-1.lab.internal.
+7       IN      PTR     ns-1.lab.internal.
+8       IN      PTR     dns-2.lab.internal.
+8       IN      PTR     ns-2.lab.internal.
 
 ; HashiCorp Vault, vault VIP is 9
 9       IN      PTR     vault.lab.internal.
 10      IN      PTR     vault-1.lab.internal.
 11      IN      PTR     vault-2.lab.internal.
+
+; DHCP
+12      IN      PTR     dhcp-1.lab.internal.
+13      IN      PTR     dhcp-2.lab.internal.
+
+; Mail servers, VIP is 14
+14      IN      PTR     mail.lab.internal.
+15      IN      PTR     mail-1.lab.internal.
+16      IN      PTR     mail-2.lab.internal.
+
+; Git servers, VIP is 17
+17      IN      PTR     git.lab.internal.
+18      IN      PTR     git-1.lab.internal.
+19      IN      PTR     git-2.lab.internal.
 
 ; Management
 20      IN      PTR     admin-1.lab.internal.
@@ -313,7 +358,7 @@ EOT
     write_file_if_changed /var/named/db.fd00.10 0644 root:named <<EOT && ZONE_DATA_CHANGED=1
 \$TTL    3600
 @       IN      SOA     ns-1.lab.internal. dns-admin.lab.internal. (
-                             $ZONE_SERIAL    ; Serial YYYYMMDDnn
+                           $ZONE_SERIAL    ; Serial YYYYMMDDnn
                                    3600    ; Refresh (1 hour)
                                     900    ; Retry (15 min)
                                  604800    ; Expire (1 week)
@@ -327,8 +372,8 @@ EOT
 2.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0     IN PTR firewall-1.lab.internal.
 3.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0     IN PTR firewall-2.lab.internal.
 
-; DHCP
-4.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0     IN PTR dhcp.lab.internal.
+; VPN
+4.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0     IN PTR vpn.lab.internal.
 
 ; IPA
 5.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0     IN PTR ipa-1.lab.internal.
@@ -340,10 +385,24 @@ EOT
 8.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0     IN PTR dns-2.lab.internal.
 8.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0     IN PTR ns-2.lab.internal.
 
-; HashiCorp Vault, vault VIP is 9
+; HashiCorp Vault, VIP is 9
 9.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0     IN PTR vault.lab.internal.
 0.1.0.0.0.0.0.0.0.0.0.0.0.0.0.0     IN PTR vault-1.lab.internal.
 1.1.0.0.0.0.0.0.0.0.0.0.0.0.0.0     IN PTR vault-2.lab.internal.
+
+; DHCP
+2.1.0.0.0.0.0.0.0.0.0.0.0.0.0.0     IN PTR dhcp-1.lab.internal.
+3.1.0.0.0.0.0.0.0.0.0.0.0.0.0.0     IN PTR dhcp-2.lab.internal.
+
+; Mail servers, VIP is 14
+4.1.0.0.0.0.0.0.0.0.0.0.0.0.0.0     IN PTR mail.lab.internal.
+5.1.0.0.0.0.0.0.0.0.0.0.0.0.0.0     IN PTR mail-1.lab.internal.
+6.1.0.0.0.0.0.0.0.0.0.0.0.0.0.0     IN PTR mail-2.lab.internal.
+
+; Git servers, VIP is 17
+7.1.0.0.0.0.0.0.0.0.0.0.0.0.0.0     IN PTR git.lab.internal.
+8.1.0.0.0.0.0.0.0.0.0.0.0.0.0.0     IN PTR git-1.lab.internal.
+9.1.0.0.0.0.0.0.0.0.0.0.0.0.0.0     IN PTR git-2.lab.internal.
 
 ; Management
 0.2.0.0.0.0.0.0.0.0.0.0.0.0.0.0     IN PTR admin-1.lab.internal.
@@ -352,7 +411,7 @@ EOT
 0.3.0.0.0.0.0.0.0.0.0.0.0.0.0.0     IN PTR logs.lab.internal.
 1.3.0.0.0.0.0.0.0.0.0.0.0.0.0.0     IN PTR analytics.lab.internal.
 
-; Database, db VIP is 40
+; Database, VIP is 40
 0.4.0.0.0.0.0.0.0.0.0.0.0.0.0.0     IN PTR db.lab.internal.
 1.4.0.0.0.0.0.0.0.0.0.0.0.0.0.0     IN PTR db-proxy-1.lab.internal.
 2.4.0.0.0.0.0.0.0.0.0.0.0.0.0.0     IN PTR db-proxy-2.lab.internal.
@@ -442,6 +501,54 @@ table inet filter {
 EOT
 }
 
+export_trust_anchors() {
+    local zones=(lab.internal 0.0.10.in-addr.arpa 0.0.0.0.0.0.0.0.0.1.0.0.0.0.d.f.ip6.arpa)
+    local zone keyfile attempt line body tmp
+
+    body=""
+    for zone in "${zones[@]}"; do
+        keyfile=""
+        for attempt in $(seq 1 30); do
+            keyfile=$(sudo find /var/named/keys -maxdepth 1 -name "K${zone}.+*.key" 2>/dev/null \
+                | xargs -r sudo grep -l 'IN[[:space:]]\+DNSKEY[[:space:]]\+257' 2>/dev/null | head -n1)
+            [ -n "$keyfile" ] && break
+            sleep 2
+        done
+
+        if [ -z "$keyfile" ]; then
+            echo "ERROR: no signed DNSKEY (flag 257) found for zone '$zone' under /var/named/keys." >&2
+            echo "Check 'sudo rndc dnssec -status $zone' and 'sudo journalctl -u named' for signing errors." >&2
+            exit 1
+        fi
+
+        line=$(sudo awk '$3=="DNSKEY"{print $1, "initial-key", $4, $5, $6, "\"" $7 "\"" ; exit}' "$keyfile")
+        if [ -z "$line" ]; then
+            echo "ERROR: could not parse DNSKEY record out of $keyfile" >&2
+            exit 1
+        fi
+        body+="    ${line};"$'\n'
+    done
+
+    tmp=$(mktemp)
+    {
+        echo "trust-anchors {"
+        printf '%s' "$body"
+        echo "};"
+    } > "$tmp"
+
+    if ! cmp -s "$tmp" /etc/named/lab.internal.trust-anchors.conf 2>/dev/null; then
+        sudo install -o root -g named -m 0644 "$tmp" /etc/named/lab.internal.trust-anchors.conf
+        echo ""
+        echo "Trust anchor file (re)generated: /etc/named/lab.internal.trust-anchors.conf"
+        echo "Copy it to BOTH recursive resolvers before they validate lab.internal, e.g.:"
+        echo "  scp /etc/named/lab.internal.trust-anchors.conf sysadmin@10.0.0.53:/home/sysadmin/"
+        echo "  scp /etc/named/lab.internal.trust-anchors.conf sysadmin@10.0.0.54:/home/sysadmin/"
+        echo "Then on each resolver: sudo mkdir -p /etc/named && sudo mv ~/lab.internal.trust-anchors.conf /etc/named/ \\"
+        echo "  && sudo chown root:named /etc/named/lab.internal.trust-anchors.conf && sudo chmod 0644 /etc/named/lab.internal.trust-anchors.conf"
+    fi
+    rm -f "$tmp"
+}
+
 configure_sshd() {
     sudo systemctl enable sshd --now
 }
@@ -452,7 +559,9 @@ main() {
     configure_network
     configure_resolver
     configure_tsig_key
+    configure_dnssec_key_directory
     configure_named_service
+    export_trust_anchors
     configure_firewall
     configure_sshd
 }

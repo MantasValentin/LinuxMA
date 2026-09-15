@@ -63,7 +63,22 @@ nameserver ::1
 EOT
 }
 
+check_trust_anchor_present() {
+    if [ ! -f /etc/named/lab.internal.trust-anchors.conf ]; then
+        echo "ERROR: /etc/named/lab.internal.trust-anchors.conf not found."
+        echo "Copy it over first, e.g.:"
+        echo "scp /etc/named/lab.internal.trust-anchors.conf sysadmin@10.0.0.54:/home/sysadmin/lab.internal.trust-anchors.conf"
+        echo "sudo mkdir -p /etc/named/"
+        echo "sudo mv /home/sysadmin/lab.internal.trust-anchors.conf /etc/named/lab.internal.trust-anchors.conf"
+        exit 1
+    fi
+}
+
 configure_named_service() {
+    check_trust_anchor_present
+    sudo chown root:named /etc/named/lab.internal.trust-anchors.conf
+    sudo chmod 0644 /etc/named/lab.internal.trust-anchors.conf
+    
     local changed=0
 
     write_file_if_changed /etc/named.conf 0644 root:named <<EOT && changed=1
@@ -88,16 +103,13 @@ options {
     };
     forward first;
     dnssec-validation auto;
-    validate-except {
-        lab.internal;
-        0.0.10.in-addr.arpa;
-        0.0.0.0.0.0.0.0.0.1.0.0.0.0.d.f.ip6.arpa;
-    };
     version "not disclosed";
 };
 EOT
 
     write_file_if_changed /etc/named/named.conf.local 0644 root:named <<EOT && changed=1
+include "/etc/named/lab.internal.trust-anchors.conf";
+
 zone "lab.internal" {
     type forward;
     forward only;
