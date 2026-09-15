@@ -110,6 +110,7 @@ zone "lab.internal" {
     allow-update { none; };
     allow-transfer { key xfer-key; };
     dnssec-policy default;
+    inline-signing yes;
     notify yes;
 };
 
@@ -119,6 +120,7 @@ zone "0.0.10.in-addr.arpa" {
     allow-update { none; };
     allow-transfer { key xfer-key; };
     dnssec-policy default;
+    inline-signing yes;
     notify yes;
 };
 
@@ -128,6 +130,7 @@ zone "0.0.0.0.0.0.0.0.0.1.0.0.0.0.d.f.ip6.arpa" {
     allow-update { none; };
     allow-transfer { key xfer-key; };
     dnssec-policy default;
+    inline-signing yes;
     notify yes;
 };
 
