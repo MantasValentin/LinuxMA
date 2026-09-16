@@ -35,9 +35,11 @@ KNOWN_BAD_DOMAIN="${KNOWN_BAD_DOMAIN:-dnssec-failed.org}"
 
 PASS=0
 FAIL=0
+SKIP=0
 
 pass() { echo "  [PASS] $1"; PASS=$((PASS + 1)); }
 fail() { echo "  [FAIL] $1"; FAIL=$((FAIL + 1)); }
+skip() { echo "  [SKIP] $1"; SKIP=$((SKIP + 1)); }
 
 section() {
     echo ""
@@ -57,7 +59,13 @@ test_zone_is_signed() {
     local dnskey rrsig
 
     dnskey=$(dig +time=3 +tries=1 @"$server" "$zone" DNSKEY +short 2>/dev/null)
-    rrsig=$(dig +time=3 +tries=1 @"$server" "$zone" SOA +dnssec +short 2>/dev/null | grep -c '^RRSIG')
+    # Use full (non +short) output and check the actual TYPE column ($4 of
+    # "name  ttl  class  type  rdata...") for RRSIG. +short strips that
+    # column, and an RRSIG's rdata text starts with the type it covers
+    # (e.g. "SOA 13 2 3600 ..."), never with the literal word "RRSIG" --
+    # so grepping +short output for '^RRSIG' can never match anything.
+    rrsig=$(dig +time=3 +tries=1 @"$server" "$zone" SOA +dnssec 2>/dev/null \
+        | awk '$0 !~ /^;/ && $4=="RRSIG"' | wc -l)
 
     if [ -n "$dnskey" ]; then
         pass "$label: DNSKEY published for $zone"
@@ -91,9 +99,20 @@ test_resolver_validates() {
     fi
 }
 
+# --- Helper: does this resolver have a working path to the public internet at all? ---
+resolver_has_internet() {
+    local server="$1"
+    dig +time=2 +tries=1 @"$server" www.google.com A +short 2>/dev/null | grep -q '[0-9]'
+}
+
 # --- Test: a resolver rejects a deliberately broken DNSSEC domain ---
 test_resolver_rejects_bad() {
     local server="$1" label="$2" status
+
+    if ! resolver_has_internet "$server"; then
+        skip "$label: no external/internet path from this resolver, so a public test domain ($KNOWN_BAD_DOMAIN) can't be used here. This is an environment limitation, not a DNSSEC problem -- internal validation was already confirmed in section 2."
+        return
+    fi
 
     status=$(dig +time=3 +tries=1 @"$server" "$KNOWN_BAD_DOMAIN" A 2>/dev/null | awk '/^;; ->>HEADER<<-/{print $6}' | tr -d ',')
 
@@ -130,11 +149,14 @@ test_resolver_rejects_bad "$RESOLVER_SECONDARY" "dns-rslv-2"
 
 echo ""
 echo "===================================="
-echo "Passed: $PASS   Failed: $FAIL"
+echo "Passed: $PASS   Failed: $FAIL   Skipped: $SKIP"
 echo "===================================="
 
 if [ "$FAIL" -eq 0 ]; then
-    echo "All DNSSEC checks passed."
+    echo "All applicable DNSSEC checks passed."
+    if [ "$SKIP" -gt 0 ]; then
+        echo "($SKIP check(s) skipped -- see notes above; this does not indicate a DNSSEC problem.)"
+    fi
     exit 0
 else
     echo "One or more DNSSEC checks failed. See DNSSEC_GUIDE.md 'Troubleshooting' section."
