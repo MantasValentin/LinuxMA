@@ -2,7 +2,8 @@
 # Rocky Linux 10.2
 set -euo pipefail
 
-source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/lib/common.sh"
+SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
+source "$SCRIPT_DIR/lib/common.sh"
 
 FQDN=dns-1.lab.internal
 
@@ -93,6 +94,7 @@ options {
     key-directory "/var/named/keys";
     recursion no;
     allow-query { localhost; 10.0.0.0/24; fd00:10::/64; };
+    allow-query-cache { none; };
     listen-on { any; };
     listen-on-v6 { any; };
     allow-transfer { none; };
@@ -104,12 +106,21 @@ EOT
     write_file_if_changed /etc/named/named.conf.local 0644 root:named <<EOT && NAMED_CHANGED=1
 include "/etc/named/tsig-xfer.key";
 
+dnssec-policy standart {
+    keys {
+        ksk lifetime 365d algorithm ecdsap256sha256;
+        zsk lifetime 60d algorithm ecdsap256sha256;
+    };
+    publish-safety P1D;
+    retire-safety P35D;
+};
+
 zone "lab.internal" {
     type primary;
     file "/var/named/db.lab.internal";
     allow-update { none; };
     allow-transfer { key xfer-key; };
-    dnssec-policy default;
+    dnssec-policy standart;
     inline-signing yes;
     notify yes;
 };
@@ -119,7 +130,7 @@ zone "0.0.10.in-addr.arpa" {
     file "/var/named/db.10.0.0";
     allow-update { none; };
     allow-transfer { key xfer-key; };
-    dnssec-policy default;
+    dnssec-policy standart;
     inline-signing yes;
     notify yes;
 };
@@ -129,7 +140,7 @@ zone "0.0.0.0.0.0.0.0.0.1.0.0.0.0.d.f.ip6.arpa" {
     file "/var/named/db.fd00.10";
     allow-update { none; };
     allow-transfer { key xfer-key; };
-    dnssec-policy default;
+    dnssec-policy standart;
     inline-signing yes;
     notify yes;
 };
@@ -256,9 +267,13 @@ dns-rslv-1               IN       AAAA     fd00:10::53
 dns-rslv-2               IN       A        10.0.0.54
 dns-rslv-2               IN       AAAA     fd00:10::54
 
-; Reverse Proxy
-proxy                    IN       A        10.0.0.60
-proxy                    IN       AAAA     fd00:10::60
+; App Proxy, VIP is 60
+app-proxy                IN       A        10.0.0.60
+app-proxy                IN       AAAA     fd00:10::60
+app-proxy-1              IN       A        10.0.0.61
+app-proxy-1              IN       AAAA     fd00:10::61
+app-proxy-2              IN       A        10.0.0.62
+app-proxy-2              IN       AAAA     fd00:10::62
 
 ; Apps
 app-1                    IN       A        10.0.0.70
@@ -351,8 +366,10 @@ EOT
 53      IN      PTR     dns-rslv-1.lab.internal.
 54      IN      PTR     dns-rslv-2.lab.internal.
 
-; Reverse Proxy
-60      IN      PTR     proxy.lab.internal.
+; App Proxy, VIP is 60
+60      IN      PTR     app-proxy.lab.internal.
+61      IN      PTR     app-proxy-1.lab.internal.
+62      IN      PTR     app-proxy-2.lab.internal.
 
 ; Apps
 70      IN      PTR     app-1.lab.internal.
@@ -427,8 +444,10 @@ EOT
 3.5.0.0.0.0.0.0.0.0.0.0.0.0.0.0     IN PTR dns-rslv-1.lab.internal.
 4.5.0.0.0.0.0.0.0.0.0.0.0.0.0.0     IN PTR dns-rslv-2.lab.internal.
 
-; Reverse Proxy
-0.6.0.0.0.0.0.0.0.0.0.0.0.0.0.0     IN PTR proxy.lab.internal.
+; App Proxy, VIP is 60
+0.6.0.0.0.0.0.0.0.0.0.0.0.0.0.0     IN PTR app-proxy.lab.internal.
+1.6.0.0.0.0.0.0.0.0.0.0.0.0.0.0     IN PTR app-proxy-1.lab.internal.
+2.6.0.0.0.0.0.0.0.0.0.0.0.0.0.0     IN PTR app-proxy-2.lab.internal.
 
 ; Apps
 0.7.0.0.0.0.0.0.0.0.0.0.0.0.0.0     IN PTR app-1.lab.internal.
@@ -504,7 +523,7 @@ table inet filter {
 EOT
 }
 
-export_trust_anchors() {
+export_initial_trust_anchors() {
     local zones=(lab.internal 0.0.10.in-addr.arpa 0.0.0.0.0.0.0.0.0.1.0.0.0.0.d.f.ip6.arpa)
     local zone rr flags proto alg key attempt line body tmp
 
@@ -512,19 +531,13 @@ export_trust_anchors() {
     for zone in "${zones[@]}"; do
         rr=""
         for attempt in $(seq 1 30); do
-            # Ask named itself for the DNSKEY over the wire. dig's +short
-            # output is always one clean "flags proto alg base64" line per
-            # key, regardless of how named formats the on-disk K*.key file
-            # (comments, line-wrapping, etc.), so this is far more robust
-            # than parsing the key file directly.
             rr=$(dig +time=2 +tries=1 @127.0.0.1 "$zone" DNSKEY +short 2>/dev/null | awk '$1==257{print; exit}')
             [ -n "$rr" ] && break
             sleep 2
         done
 
         if [ -z "$rr" ]; then
-            echo "ERROR: no DNSKEY (flag 257) returned for zone '$zone' from the local resolver." >&2
-            echo "Check 'sudo rndc dnssec -status $zone' and 'sudo journalctl -u named' for signing errors." >&2
+            echo "ERROR: no DNSKEY returned for zone '$zone'." >&2
             exit 1
         fi
 
@@ -540,15 +553,8 @@ export_trust_anchors() {
         echo "};"
     } > "$tmp"
 
-    if ! cmp -s "$tmp" /etc/named/lab.internal.trust-anchors.conf 2>/dev/null; then
+    if [ ! -s /etc/named/lab.internal.trust-anchors.conf ]; then
         sudo install -o root -g named -m 0644 "$tmp" /etc/named/lab.internal.trust-anchors.conf
-        echo ""
-        echo "Trust anchor file (re)generated: /etc/named/lab.internal.trust-anchors.conf"
-        echo "Copy it to BOTH recursive resolvers before they validate lab.internal, e.g.:"
-        echo "  scp /etc/named/lab.internal.trust-anchors.conf sysadmin@10.0.0.53:/home/sysadmin/"
-        echo "  scp /etc/named/lab.internal.trust-anchors.conf sysadmin@10.0.0.54:/home/sysadmin/"
-        echo "Then on each resolver: sudo mkdir -p /etc/named && sudo mv ~/lab.internal.trust-anchors.conf /etc/named/ \\"
-        echo "  && sudo chown root:named /etc/named/lab.internal.trust-anchors.conf && sudo chmod 0644 /etc/named/lab.internal.trust-anchors.conf"
     fi
     rm -f "$tmp"
 }
@@ -565,7 +571,7 @@ main() {
     configure_tsig_key
     configure_dnssec_key_directory
     configure_named_service
-    export_trust_anchors
+    export_initial_trust_anchors
     configure_firewall
     configure_sshd
 }

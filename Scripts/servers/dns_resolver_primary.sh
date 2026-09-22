@@ -2,7 +2,8 @@
 # Rocky Linux 10.2
 set -euo pipefail
 
-source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/lib/common.sh"
+SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
+source "$SCRIPT_DIR/lib/common.sh"
 
 FQDN=dns-rslv-1.lab.internal
 
@@ -72,7 +73,6 @@ check_trust_anchor_present() {
         echo "sudo mv /home/sysadmin/lab.internal.trust-anchors.conf /etc/named/lab.internal.trust-anchors.conf"
         exit 1
     fi
-
 }
 
 configure_named_service() {
@@ -93,6 +93,7 @@ options {
     directory "/var/named";
     recursion yes;
     allow-recursion { localhost; 10.0.0.0/24; fd00:10::/64; };
+    allow-query-cache { localhost; 10.0.0.0/24; fd00:10::/64; };
     allow-query { localhost; 10.0.0.0/24; fd00:10::/64; };
     listen-on { any; };
     listen-on-v6 { any; };
@@ -102,7 +103,8 @@ options {
         2001:4860:4860::8888;
         2606:4700:4700::1111;
     };
-    forward first;
+    forward only;
+    empty-zones-enable yes;
     dnssec-validation auto;
     version "not disclosed";
 };

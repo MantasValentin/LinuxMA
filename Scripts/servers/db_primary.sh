@@ -2,7 +2,8 @@
 # Rocky Linux 10.2
 set -euo pipefail
 
-source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/lib/common.sh"
+SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
+source "$SCRIPT_DIR/lib/common.sh"
 
 read -r -s -p $'Postgres superuser password:\n' PG_SUPERUSER_PASSWORD
 read -r -s -p $'Postgres replication password:\n' PG_REPL_PASSWORD

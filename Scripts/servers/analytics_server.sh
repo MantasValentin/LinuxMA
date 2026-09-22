@@ -2,7 +2,8 @@
 # Rocky Linux 10.2 - Metrics (Prometheus + Grafana)
 set -euo pipefail
 
-source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/lib/common.sh"
+SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
+source "$SCRIPT_DIR/lib/common.sh"
 
 FQDN=analytics.lab.internal
 

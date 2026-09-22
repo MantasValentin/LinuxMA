@@ -5,23 +5,23 @@ set -euo pipefail
 SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 source "$SCRIPT_DIR/lib/common.sh"
 
-FQDN=dhcp-1.lab.internal
+FQDN=dhcp-2.lab.internal
 
 NIC=ens34
 
-LAN_IP_V4=10.0.0.12
+LAN_IP_V4=10.0.0.13
 LAN_PREFIX_V4=24
 GATEWAY_V4=10.0.0.1
 
-LAN_IP_V6=fd00:10::12
+LAN_IP_V6=fd00:10::13
 LAN_PREFIX_V6=64
 GATEWAY_V6=fd00:10::1
 
-PEER_IP_V4=10.0.0.13
-PEER_IP_V6=fd00:10::13
+PEER_IP_V4=10.0.0.12
+PEER_IP_V6=fd00:10::12
 
-SERVER_NAME=dhcp-1
-PEER_NAME=dhcp-2
+SERVER_NAME=dhcp-2
+PEER_NAME=dhcp-1
 
 HA_AUTH_USER="ha_dhcp"
 HA_AUTH_PASS="HA_Secret"
@@ -308,6 +308,7 @@ table inet filter {
         udp dport 547 accept
 
         # Kea Control Agent
+        # plus admin API access from the management range
         ip saddr $PEER_IP_V4/32 tcp dport 8000 accept
         ip6 saddr $PEER_IP_V6/128 tcp dport 8000 accept
         ip saddr 10.0.0.20-10.0.0.29 tcp dport 8000 accept
