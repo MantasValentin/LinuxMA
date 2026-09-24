@@ -214,8 +214,9 @@ table inet filter {
 
         iifname "$NIC_I" oifname "$NIC_E" tcp dport { 80, 443 } ct state new accept
 
-        iifname "$NIC_I" oifname "$NIC_E" udp dport 53 accept
-        iifname "$NIC_I" oifname "$NIC_E" tcp dport 53 accept
+        # DNS and DNS over TLS
+        iifname "$NIC_I" oifname "$NIC_E" udp dport { 53, 853 } accept
+        iifname "$NIC_I" oifname "$NIC_E" tcp dport { 53, 853 } accept
 
         iifname "$NIC_I" oifname "$NIC_E" ip saddr { 10.0.0.5, 10.0.0.6 } udp dport 123 accept
         iifname "$NIC_I" oifname "$NIC_E" ip6 saddr { fd00:10::5, fd00:10::6 } udp dport 123 accept
