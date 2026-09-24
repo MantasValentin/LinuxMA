@@ -13,12 +13,11 @@ FQDN=dns-rslv-2.lab.internal
 TLS_CERT=/etc/pki/tls/certs/dns-rslv-2.pem
 TLS_KEY=/etc/pki/tls/private/dns-rslv-2.key
 
-# Local loopback-only DoT-forwarding proxy (Unbound), fronting BIND's
-# forwarders so the resolver->upstream leg is encrypted too.
-UNBOUND_PORT=5335
+# System CA bundle, used to validate the upstream forwarders
+CA_BUNDLE=/etc/pki/tls/certs/ca-bundle.crt
 
 configure_packages() {
-    ensure_packages ipa-client chrony unbound policycoreutils-python-utils
+    ensure_packages ipa-client chrony
 }
 
 configure_chrony() {
@@ -90,77 +89,29 @@ EOT
     sudo restorecon -Rv /etc/pki/tls/private /etc/pki/tls/certs
 }
 
-# Local, loopback-only DoT client proxy. named forwards to it in plaintext
-# over loopback; it re-issues those queries as DNS-over-TLS to Cloudflare
-# and Google, validating each provider's own certificate hostname.
-configure_dot_forwarder() {
-    if ! sudo semanage port -l 2>/dev/null | grep -qE "^dns_port_t\b.*\b${UNBOUND_PORT}\b"; then
-        sudo semanage port -a -t dns_port_t -p tcp "$UNBOUND_PORT" 2>/dev/null || \
-            sudo semanage port -m -t dns_port_t -p tcp "$UNBOUND_PORT" 2>/dev/null || true
-        sudo semanage port -a -t dns_port_t -p udp "$UNBOUND_PORT" 2>/dev/null || \
-            sudo semanage port -m -t dns_port_t -p udp "$UNBOUND_PORT" 2>/dev/null || true
-    fi
-
-    local changed=0
-    write_file_if_changed /etc/unbound/unbound.conf 0644 root:root <<EOT && changed=1
-server:
-    interface: 127.0.0.1@$UNBOUND_PORT
-    interface: ::1@$UNBOUND_PORT
-    do-ip4: yes
-    do-ip6: yes
-    do-udp: yes
-    do-tcp: yes
-    access-control: 127.0.0.1/32 allow
-    access-control: ::1/128 allow
-    access-control: 0.0.0.0/0 refuse
-    access-control: ::0/0 refuse
-
-    # Pure forwarding relay only -- no local DNSSEC validation here.
-    # named is the single validation point for this lab.
-    module-config: "iterator"
-
-    tls-cert-bundle: /etc/pki/tls/certs/ca-bundle.crt
-
-    hide-identity: yes
-    hide-version: yes
-    num-threads: 1
-    so-reuseport: yes
-
-forward-zone:
-    name: "."
-    forward-tls-upstream: yes
-    forward-addr: 1.1.1.1@853#cloudflare-dns.com
-    forward-addr: 1.0.0.1@853#cloudflare-dns.com
-    forward-addr: 2606:4700:4700::1111@853#cloudflare-dns.com
-    forward-addr: 2606:4700:4700::1001@853#cloudflare-dns.com
-    forward-addr: 8.8.8.8@853#dns.google
-    forward-addr: 8.8.4.4@853#dns.google
-    forward-addr: 2001:4860:4860::8888@853#dns.google
-    forward-addr: 2001:4860:4860::8844@853#dns.google
-EOT
-
-    if ! sudo systemctl is-active --quiet unbound; then
-        sudo systemctl enable unbound --now
-    elif [ "$changed" -eq 1 ]; then
-        sudo systemctl restart unbound
-    fi
-    sudo systemctl enable unbound
-}
-
-# Adds the port-853 client-facing listener and repoints named's forwarders
-# at the local Unbound DoT proxy instead of talking to 8.8.8.8/1.1.1.1
-# directly in plaintext.
 configure_named_dot() {
     local changed=0
 
     write_file_if_changed /etc/named/named.conf.options 0644 root:named <<EOT && changed=1
-tls dot-tls {
+tls local-tls {
     cert-file "$TLS_CERT";
     key-file "$TLS_KEY";
     protocols { TLSv1.2; TLSv1.3; };
     ciphers "HIGH:!aNULL:!MD5:!3DES:!eNULL:!EXPORT";
     prefer-server-ciphers yes;
     session-tickets no;
+};
+
+tls cloudflare-tls {
+    ca-file "$CA_BUNDLE";
+    remote-hostname "cloudflare-dns.com";
+    protocols { TLSv1.2; TLSv1.3; };
+};
+
+tls google-tls {
+    ca-file "$CA_BUNDLE";
+    remote-hostname "dns.google";
+    protocols { TLSv1.2; TLSv1.3; };
 };
 
 options {
@@ -171,11 +122,17 @@ options {
     allow-query { localhost; 10.0.0.0/24; fd00:10::/64; };
     listen-on { any; };
     listen-on-v6 { any; };
-    listen-on port 853 tls dot-tls { any; };
-    listen-on-v6 port 853 tls dot-tls { any; };
-    forwarders {
-        127.0.0.1 port $UNBOUND_PORT;
-        ::1 port $UNBOUND_PORT;
+    listen-on port 853 tls local-tls { any; };
+    listen-on-v6 port 853 tls local-tls { any; };
+    forwarders port 853 {
+        1.1.1.1 tls cloudflare-tls;
+        1.0.0.1 tls cloudflare-tls;
+        2606:4700:4700::1111 tls cloudflare-tls;
+        2606:4700:4700::1001 tls cloudflare-tls;
+        8.8.8.8 tls google-tls;
+        8.8.4.4 tls google-tls;
+        2001:4860:4860::8888 tls google-tls;
+        2001:4860:4860::8844 tls google-tls;
     };
     forward only;
     empty-zones-enable yes;
@@ -192,9 +149,6 @@ EOT
     fi
 }
 
-# Adds the port-853 LAN rule to the existing ruleset. apply_nftables_ruleset
-# replaces the whole ruleset, so this reproduces the same base rules as
-# dns_resolver_secondary.sh plus the new DoT rule.
 configure_firewall_dot() {
     apply_nftables_ruleset <<EOT
 #!/usr/sbin/nft -f
@@ -227,7 +181,7 @@ table inet filter {
         ip6 saddr fd00:10::/64 udp dport 53 accept
         ip6 saddr fd00:10::/64 tcp dport 53 accept
 
-        # DNS-over-TLS (encrypted DNS) from the LAN only
+        # DNS-over-TLS from the LAN only
         ip saddr 10.0.0.0/24 tcp dport 853 accept
         ip6 saddr fd00:10::/64 tcp dport 853 accept
 
@@ -252,7 +206,6 @@ main() {
     configure_chrony
     configure_ipa_join
     configure_dot_cert
-    configure_dot_forwarder
     configure_named_dot
     configure_firewall_dot
 }
