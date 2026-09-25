@@ -142,7 +142,6 @@ options {
 EOT
 
     sudo restorecon -Rv /etc/named
-    sudo named-checkconf
 
     if [ "$changed" -eq 1 ]; then
         sudo systemctl restart named

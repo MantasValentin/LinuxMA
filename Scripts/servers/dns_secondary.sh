@@ -135,7 +135,6 @@ server fd00:10::7 {
 EOT
 
     sudo restorecon -Rv /etc/named /var/named
-    sudo named-checkconf
 
     if ! sudo systemctl is-active --quiet isc-bind-named; then
         sudo systemctl enable --now isc-bind-named

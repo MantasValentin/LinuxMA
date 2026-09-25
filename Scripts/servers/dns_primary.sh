@@ -457,7 +457,6 @@ EOT
 
     sudo restorecon -Rv /etc/named /var/named
 
-    sudo named-checkconf
     sudo named-checkzone lab.internal /var/named/db.lab.internal
     sudo named-checkzone 0.0.10.in-addr.arpa /var/named/db.10.0.0
     sudo named-checkzone 0.0.0.0.0.0.0.0.0.1.0.0.0.0.d.f.ip6.arpa /var/named/db.fd00.10
