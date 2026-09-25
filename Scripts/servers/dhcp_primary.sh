@@ -39,7 +39,7 @@ configure_hostname() {
 configure_packages() {
     sudo dnf upgrade -y
     ensure_packages epel-release
-    ensure_packages openssh-server git nftables systemd-networkd isc-kea
+    ensure_packages openssh-server git nftables systemd-networkd kea
 }
 
 configure_network() {
