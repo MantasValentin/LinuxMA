@@ -85,7 +85,7 @@ configure_dnssec_key_directory() {
 configure_named_options() {
     sudo mkdir -p /etc/named /var/named
     chown -R root:named /etc/named /var/named
-    chmow -R 664 /etc/named /var/named
+    chmod -R 664 /etc/named /var/named
     NAMED_CHANGED=0
 
     write_file_if_changed /etc/opt/isc/scls/isc-bind/named.conf 0644 root:named <<EOT && NAMED_CHANGED=1
