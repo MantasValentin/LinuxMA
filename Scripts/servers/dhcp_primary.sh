@@ -99,8 +99,8 @@ EOT
 }
 
 configure_kea() {
-    sudo mkdir -p /etc/kea /var/lib/kea /run/kea
-    sudo install -d -o kea -g kea -m 0750 /var/lib/kea /run/kea
+    sudo mkdir -p /etc/kea /var/lib/kea /var/run/kea
+    sudo install -d -o kea -g kea -m 0750 /var/lib/kea /var/run/kea
 
     local dhcp4_changed=0 dhcp6_changed=0 ca_changed=0
 
@@ -112,7 +112,7 @@ configure_kea() {
     },
     "control-socket": {
       "socket-type": "unix",
-      "socket-name": "/run/kea/kea4-ctrl-socket"
+      "socket-name": "/var/run/kea/kea4-ctrl-socket"
     },
     "lease-database": {
       "type": "memfile",
@@ -168,7 +168,7 @@ EOT
     },
     "control-socket": {
       "socket-type": "unix",
-      "socket-name": "/run/kea/kea6-ctrl-socket"
+      "socket-name": "/var/run/kea/kea6-ctrl-socket"
     },
     "lease-database": {
       "type": "memfile",
@@ -228,18 +228,18 @@ EOT
     "control-sockets": {
       "dhcp4": {
         "socket-type": "unix",
-        "socket-name": "/run/kea/kea4-ctrl-socket"
+        "socket-name": "/var/run/kea/kea4-ctrl-socket"
       },
       "dhcp6": {
         "socket-type": "unix",
-        "socket-name": "/run/kea/kea6-ctrl-socket"
+        "socket-name": "/var/run/kea/kea6-ctrl-socket"
       }
     }
   }
 }
 EOT
 
-    sudo restorecon -Rv /etc/kea /var/lib/kea /run/kea 2>/dev/null || true
+    sudo restorecon -Rv /etc/kea /var/lib/kea /var/run/kea 2>/dev/null || true
 
     sudo kea-dhcp4 -t /etc/kea/kea-dhcp4.conf
     sudo kea-dhcp6 -t /etc/kea/kea-dhcp6.conf
