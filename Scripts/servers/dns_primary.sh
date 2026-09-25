@@ -17,7 +17,7 @@ LAN_IP_V6=fd00:10::7
 LAN_PREFIX_V6=64
 GATEWAY_V6=fd00:10::1
 
-ZONE_SERIAL=2026090201
+ZONE_SERIAL=2026092501
 
 # Temporary bootstrap networking before pulling this script to run it:
 #   sudo ip link set "$NIC" up
