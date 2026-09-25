@@ -85,7 +85,7 @@ configure_named_service() {
     
     local changed=0
 
-    write_file_if_changed /etc/named.conf 0644 root:named <<EOT && changed=1
+    write_file_if_changed /etc/opt/isc/scls/isc-bind/named.conf 0644 root:named <<EOT && changed=1
 include "/etc/named/named.conf.options";
 include "/etc/named/named.conf.local";
 EOT

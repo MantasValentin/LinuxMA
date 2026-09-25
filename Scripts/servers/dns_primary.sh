@@ -86,7 +86,7 @@ configure_named_options() {
     sudo mkdir -p /etc/named /var/named
     NAMED_CHANGED=0
 
-    write_file_if_changed /etc/named.conf 0644 root:named <<EOT && NAMED_CHANGED=1
+    write_file_if_changed /etc/opt/isc/scls/isc-bind/named.conf 0644 root:named <<EOT && NAMED_CHANGED=1
 include "/etc/named/named.conf.options";
 include "/etc/named/named.conf.local";
 EOT
@@ -109,7 +109,7 @@ EOT
     write_file_if_changed /etc/named/named.conf.local 0644 root:named <<EOT && NAMED_CHANGED=1
 include "/etc/named/tsig-xfer.key";
 
-dnssec-policy standart {
+dnssec-policy standard {
     keys {
         ksk lifetime 365d algorithm ecdsap256sha256;
         zsk lifetime 60d algorithm ecdsap256sha256;
@@ -123,7 +123,7 @@ zone "lab.internal" {
     file "/var/named/db.lab.internal";
     allow-update { none; };
     allow-transfer { key xfer-key; };
-    dnssec-policy standart;
+    dnssec-policy standard;
     inline-signing yes;
     notify yes;
 };
@@ -133,7 +133,7 @@ zone "0.0.10.in-addr.arpa" {
     file "/var/named/db.10.0.0";
     allow-update { none; };
     allow-transfer { key xfer-key; };
-    dnssec-policy standart;
+    dnssec-policy standard;
     inline-signing yes;
     notify yes;
 };
@@ -143,7 +143,7 @@ zone "0.0.0.0.0.0.0.0.0.1.0.0.0.0.d.f.ip6.arpa" {
     file "/var/named/db.fd00.10";
     allow-update { none; };
     allow-transfer { key xfer-key; };
-    dnssec-policy standart;
+    dnssec-policy standard;
     inline-signing yes;
     notify yes;
 };
