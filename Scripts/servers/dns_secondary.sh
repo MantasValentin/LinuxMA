@@ -41,7 +41,7 @@ configure_hostname() {
 configure_packages() {
     sudo dnf upgrade -y
     ensure_packages epel-release
-    sudo dnf copr enable isc/bind
+    sudo dnf copr enable -y isc/bind
     sudo dnf install -y isc-bind
     ensure_packages nftables openssh-server git systemd-networkd
 }
