@@ -80,18 +80,20 @@ EOT
 
 configure_named_service() {
     sudo mkdir -p /etc/named /var/named
+    chown -R root:named /etc/named /var/named
+    chmod -R 770 /etc/named /var/named
     check_tsig_key_present
     sudo chown root:named /etc/named/tsig-xfer.key
-    sudo chmod 750 /etc/named/tsig-xfer.key
+    sudo chmod 0770 /etc/named/tsig-xfer.key
 
     local changed=0
 
-    write_file_if_changed /etc/opt/isc/scls/isc-bind/named.conf 0750 root:named <<EOT && changed=1
+    write_file_if_changed /etc/opt/isc/scls/isc-bind/named.conf 0770 root:named <<EOT && changed=1
 include "/etc/named/named.conf.options";
 include "/etc/named/named.conf.local";
 EOT
 
-    write_file_if_changed /etc/named/named.conf.options 0750 root:named <<EOT && changed=1
+    write_file_if_changed /etc/named/named.conf.options 0770 root:named <<EOT && changed=1
 options {
     directory "/var/named";
     recursion no;
@@ -105,7 +107,7 @@ options {
 };
 EOT
 
-    write_file_if_changed /etc/named/named.conf.local 0750 root:named <<EOT && changed=1
+    write_file_if_changed /etc/named/named.conf.local 0770 root:named <<EOT && changed=1
 include "/etc/named/tsig-xfer.key";
 
 zone "lab.internal" {

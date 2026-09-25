@@ -75,7 +75,7 @@ configure_tsig_key() {
         sudo tsig-keygen -a hmac-sha256 xfer-key | sudo tee /etc/named/tsig-xfer.key > /dev/null
     fi
     sudo chown root:named /etc/named/tsig-xfer.key
-    sudo chmod 750 /etc/named/tsig-xfer.key
+    sudo chmod 770 /etc/named/tsig-xfer.key
 }
 
 configure_dnssec_key_directory() {
