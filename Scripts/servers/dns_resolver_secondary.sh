@@ -81,17 +81,17 @@ configure_named_service() {
     sudo mkdir -p /etc/named /var/named
     check_trust_anchor_present
     sudo chown root:named /etc/named/lab.internal.trust-anchors.conf
-    sudo chmod 0644 /etc/named/lab.internal.trust-anchors.conf
+    sudo chmod 0750 /etc/named/lab.internal.trust-anchors.conf
     
     local changed=0
 
-    write_file_if_changed /etc/opt/isc/scls/isc-bind/named.conf 0644 root:named <<EOT && changed=1
+    write_file_if_changed /etc/opt/isc/scls/isc-bind/named.conf 0750 root:named <<EOT && changed=1
 include "/etc/named/named.conf.options";
 include "/etc/named/named.conf.local";
 EOT
 
     sudo mkdir -p /etc/named
-    write_file_if_changed /etc/named/named.conf.options 0644 root:named <<EOT && changed=1
+    write_file_if_changed /etc/named/named.conf.options 0750 root:named <<EOT && changed=1
 options {
     directory "/var/named";
     recursion yes;
@@ -113,7 +113,7 @@ options {
 };
 EOT
 
-    write_file_if_changed /etc/named/named.conf.local 0644 root:named <<EOT && changed=1
+    write_file_if_changed /etc/named/named.conf.local 0750 root:named <<EOT && changed=1
 include "/etc/named/lab.internal.trust-anchors.conf";
 
 zone "lab.internal" {

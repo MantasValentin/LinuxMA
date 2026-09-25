@@ -75,7 +75,7 @@ configure_tsig_key() {
         sudo tsig-keygen -a hmac-sha256 xfer-key | sudo tee /etc/named/tsig-xfer.key > /dev/null
     fi
     sudo chown root:named /etc/named/tsig-xfer.key
-    sudo chmod 640 /etc/named/tsig-xfer.key
+    sudo chmod 750 /etc/named/tsig-xfer.key
 }
 
 configure_dnssec_key_directory() {
@@ -85,15 +85,15 @@ configure_dnssec_key_directory() {
 configure_named_options() {
     sudo mkdir -p /etc/named /var/named
     chown -R root:named /etc/named /var/named
-    chmod -R 664 /etc/named /var/named
+    chmod -R 750 /etc/named /var/named
     NAMED_CHANGED=0
 
-    write_file_if_changed /etc/opt/isc/scls/isc-bind/named.conf 0644 root:named <<EOT && NAMED_CHANGED=1
+    write_file_if_changed /etc/opt/isc/scls/isc-bind/named.conf 0750 root:named <<EOT && NAMED_CHANGED=1
 include "/etc/named/named.conf.options";
 include "/etc/named/named.conf.local";
 EOT
 
-    write_file_if_changed /etc/named/named.conf.options 0644 root:named <<EOT && NAMED_CHANGED=1
+    write_file_if_changed /etc/named/named.conf.options 0750 root:named <<EOT && NAMED_CHANGED=1
 options {
     directory "/var/named";
     key-directory "/var/named/keys";
@@ -108,7 +108,7 @@ options {
 };
 EOT
 
-    write_file_if_changed /etc/named/named.conf.local 0644 root:named <<EOT && NAMED_CHANGED=1
+    write_file_if_changed /etc/named/named.conf.local 0750 root:named <<EOT && NAMED_CHANGED=1
 include "/etc/named/tsig-xfer.key";
 
 dnssec-policy standard {
@@ -163,7 +163,7 @@ EOT
 configure_zones() {
     ZONE_DATA_CHANGED=0
 
-    write_file_if_changed /var/named/db.lab.internal 0644 root:named <<EOT && ZONE_DATA_CHANGED=1
+    write_file_if_changed /var/named/db.lab.internal 0750 root:named <<EOT && ZONE_DATA_CHANGED=1
 \$TTL    3600
 @       IN      SOA     ns-1.lab.internal. dns-admin.lab.internal. (
                              $ZONE_SERIAL  ; Serial YYYYMMDDnn
@@ -301,7 +301,7 @@ _ldap._tcp.lab.internal.            IN SRV 0 100 389 ipa-2.lab.internal.
 _kerberos.lab.internal.             IN TXT "LAB.INTERNAL"
 EOT
 
-    write_file_if_changed /var/named/db.10.0.0 0644 root:named <<EOT && ZONE_DATA_CHANGED=1
+    write_file_if_changed /var/named/db.10.0.0 0750 root:named <<EOT && ZONE_DATA_CHANGED=1
 \$TTL    3600
 @       IN      SOA     ns-1.lab.internal. dns-admin.lab.internal. (
                            $ZONE_SERIAL    ; Serial YYYYMMDDnn
@@ -380,7 +380,7 @@ EOT
 70      IN      PTR     app-1.lab.internal.
 EOT
 
-    write_file_if_changed /var/named/db.fd00.10 0644 root:named <<EOT && ZONE_DATA_CHANGED=1
+    write_file_if_changed /var/named/db.fd00.10 0750 root:named <<EOT && ZONE_DATA_CHANGED=1
 \$TTL    3600
 @       IN      SOA     ns-1.lab.internal. dns-admin.lab.internal. (
                            $ZONE_SERIAL    ; Serial YYYYMMDDnn
