@@ -41,7 +41,9 @@ configure_hostname() {
 configure_packages() {
     sudo dnf upgrade -y
     ensure_packages epel-release
-    ensure_packages bind bind-utils nftables openssh-server git systemd-networkd
+    sudo dnf copr enable isc/bind
+    sudo dnf install -y isc-bind
+    ensure_packages nftables openssh-server git systemd-networkd
 }
 
 configure_network() {
@@ -135,12 +137,12 @@ EOT
     sudo restorecon -Rv /etc/named /var/named
     sudo named-checkconf
 
-    if ! sudo systemctl is-active --quiet named; then
-        sudo systemctl enable named --now
+    if ! sudo systemctl is-active --quiet isc-bind-named; then
+        sudo systemctl enable --now isc-bind-named
     elif [ "$changed" -eq 1 ]; then
-        sudo systemctl restart named
+        sudo systemctl restart isc-bind-named
     fi
-    sudo systemctl enable named
+    sudo systemctl enable isc-bind-named
 }
 
 configure_firewall() {

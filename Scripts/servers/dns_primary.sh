@@ -32,7 +32,9 @@ configure_hostname() {
 configure_packages() {
     sudo dnf upgrade -y
     ensure_packages epel-release
-    ensure_packages bind bind-utils nftables openssh-server git systemd-networkd
+    sudo dnf copr enable isc/bind
+    sudo dnf install -y isc-bind
+    ensure_packages nftables openssh-server git systemd-networkd
 }
 
 configure_network() {
@@ -465,14 +467,14 @@ configure_named_service() {
     configure_named_options
     configure_zones
 
-    if ! sudo systemctl is-active --quiet named; then
-        sudo systemctl enable named --now
+    if ! sudo systemctl is-active --quiet isc-bind-named; then
+        sudo systemctl enable --now isc-bind-named
     elif [ "${NAMED_CHANGED:-0}" -eq 1 ]; then
-        sudo systemctl restart named
+        sudo systemctl restart isc-bind-named
     elif [ "${ZONE_DATA_CHANGED:-0}" -eq 1 ]; then
         sudo rndc reload
     fi
-    sudo systemctl enable named
+    sudo systemctl enable isc-bind-named
 }
 
 configure_firewall() {
