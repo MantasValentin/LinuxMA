@@ -79,6 +79,7 @@ EOT
 }
 
 configure_named_service() {
+    sudo mkdir -p /etc/named /var/named
     check_tsig_key_present
     sudo chown root:named /etc/named/tsig-xfer.key
     sudo chmod 640 /etc/named/tsig-xfer.key

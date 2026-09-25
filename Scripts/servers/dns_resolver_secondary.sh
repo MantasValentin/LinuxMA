@@ -78,6 +78,7 @@ check_trust_anchor_present() {
 }
 
 configure_named_service() {
+    sudo mkdir -p /etc/named /var/named
     check_trust_anchor_present
     sudo chown root:named /etc/named/lab.internal.trust-anchors.conf
     sudo chmod 0644 /etc/named/lab.internal.trust-anchors.conf

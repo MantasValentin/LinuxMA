@@ -83,6 +83,7 @@ configure_dnssec_key_directory() {
 }
 
 configure_named_options() {
+    sudo mkdir -p /etc/named /var/named
     NAMED_CHANGED=0
 
     write_file_if_changed /etc/named.conf 0644 root:named <<EOT && NAMED_CHANGED=1
