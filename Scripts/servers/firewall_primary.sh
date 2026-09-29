@@ -141,6 +141,10 @@ table ip nat {
     chain prerouting {
         type nat hook prerouting priority dstnat; policy accept;
         iifname "$NIC_E" ip daddr $WAN_VIP_V4 tcp dport { 80, 443 } dnat to 10.0.0.60
+
+        # WireGuard VPN
+        iifname "$NIC_E" ip daddr $WAN_VIP_V4 tcp dport 51820 dnat to 10.0.0.4
+        iifname "$NIC_E" ip daddr $WAN_VIP_V4 udp dport 51820 dnat to 10.0.0.4
     }
 }
 
@@ -153,6 +157,10 @@ table ip6 nat {
     chain prerouting {
         type nat hook prerouting priority dstnat; policy accept;
         iifname "$NIC_E" ip6 daddr $WAN_VIP_V6 tcp dport { 80, 443 } dnat to fd00:10::60
+
+        # WireGuard VPN
+        iifname "$NIC_E" ip6 daddr $WAN_VIP_V6 tcp dport 51820 dnat to fd00:10::4
+        iifname "$NIC_E" ip6 daddr $WAN_VIP_V6 udp dport 51820 dnat to fd00:10::4
     }
 }
 
@@ -212,12 +220,14 @@ table inet filter {
         iifname "$NIC_E" oifname "$NIC_I" ip daddr 10.0.0.60 tcp dport { 80, 443 } accept
         iifname "$NIC_E" oifname "$NIC_I" ip6 daddr fd00:10::60 tcp dport { 80, 443 } accept
 
+        # HTTP/HTTPS outgoing
         iifname "$NIC_I" oifname "$NIC_E" tcp dport { 80, 443 } ct state new accept
 
         # DNS and DNS over TLS
         iifname "$NIC_I" oifname "$NIC_E" udp dport { 53, 853 } accept
         iifname "$NIC_I" oifname "$NIC_E" tcp dport { 53, 853 } accept
 
+        # IPA NTP request outgoing
         iifname "$NIC_I" oifname "$NIC_E" ip saddr { 10.0.0.5, 10.0.0.6 } udp dport 123 accept
         iifname "$NIC_I" oifname "$NIC_E" ip6 saddr { fd00:10::5, fd00:10::6 } udp dport 123 accept
     }
