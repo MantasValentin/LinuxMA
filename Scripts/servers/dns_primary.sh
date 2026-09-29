@@ -118,6 +118,8 @@ dnssec-policy standard {
     };
     publish-safety P1D;
     retire-safety P35D;
+
+    nsec3param iterations 0 optout no salt-length 0;
 };
 
 zone "lab.internal" {
