@@ -76,11 +76,12 @@ EOT
 }
 
 _ha_peers_json() {
+    local port=$1
     cat <<EOT
               "peers": [
                 {
                   "name": "dhcp-1",
-                  "url": "http://10.0.0.12:8000/",
+                  "url": "http://10.0.0.12:$port/",
                   "role": "primary",
                   "auto-failover": true,
                   "basic-auth-user": "$HA_AUTH_USER",
@@ -88,7 +89,7 @@ _ha_peers_json() {
                 },
                 {
                   "name": "dhcp-2",
-                  "url": "http://10.0.0.13:8000/",
+                  "url": "http://10.0.0.13:$port/",
                   "role": "standby",
                   "auto-failover": true,
                   "basic-auth-user": "$HA_AUTH_USER",
@@ -150,7 +151,7 @@ configure_kea() {
               "max-response-delay": 30000,
               "max-ack-delay": 5000,
               "max-unacked-clients": 0,
-$(_ha_peers_json)
+$(_ha_peers_json 8001)
             }
           ]
         }
@@ -204,7 +205,7 @@ EOT
               "max-response-delay": 30000,
               "max-ack-delay": 5000,
               "max-unacked-clients": 0,
-$(_ha_peers_json)
+$(_ha_peers_json 8002)
             }
           ]
         }
@@ -307,12 +308,9 @@ table inet filter {
         # DHCPv6 requests from the LAN
         udp dport 547 accept
 
-        # Kea Control Agent
-        # plus admin API access from the management range
-        ip saddr $PEER_IP_V4/32 tcp dport 8000 accept
-        ip6 saddr $PEER_IP_V6/128 tcp dport 8000 accept
-        ip saddr 10.0.0.20-10.0.0.29 tcp dport 8000 accept
-        ip6 saddr fd00:10::20-fd00:10::29 tcp dport 8000 accept
+        # Kea HA dedicated listeners
+        ip saddr $PEER_IP_V4/32 tcp dport { 8001, 8002 } accept
+        ip6 saddr $PEER_IP_V6/128 tcp dport { 8001, 8002 } accept
 
         # For node exporter from analytics server 10.0.0.31 / fd00:10::31
         ip saddr 10.0.0.31/32 tcp dport 9100 accept
