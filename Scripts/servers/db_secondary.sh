@@ -32,6 +32,9 @@ DB_PROXY_2_FQDN=db-proxy-2.lab.internal
 DB_PROXY_2_IP_V4=10.0.0.42
 DB_PROXY_2_IP_V6=fd00:10::42
 
+DB_PROXY_VIP_IP_V4=10.0.0.40
+DB_PROXY_VIP_IP_V6=fd00:10::40
+
 # Patroni/etcd identity
 NODE_NAME=db-2
 
