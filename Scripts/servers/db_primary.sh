@@ -476,6 +476,31 @@ EOT
         fi
     fi
 
+if sudo systemctl is-active --quiet patroni; then
+    if curl -fs \
+        --cacert "$TLS_CA" \
+        --resolve "$FQDN:8008:127.0.0.1" \
+        "https://$FQDN:8008/primary" >/dev/null 2>&1; then
+
+        echo "Patroni reports this node is PRIMARY."
+
+        if sudo -u postgres pgbackrest \
+            --stanza=pg-cluster \
+            --config=/etc/pgbackrest/pgbackrest.conf \
+            stanza-create; then
+
+            echo "pgBackRest stanza created successfully."
+        else
+            echo "ERROR: pgBackRest stanza-create failed." >&2
+            exit 1
+        fi
+
+    else
+        echo "Patroni reports this node is STANDBY; skipping stanza-create."
+    fi
+fi
+
+
     unset DB_BACKUP_PASSWORD
 }
 
