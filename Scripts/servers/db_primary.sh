@@ -32,6 +32,9 @@ DB_PROXY_2_FQDN=db-proxy-2.lab.internal
 DB_PROXY_2_IP_V4=10.0.0.42
 DB_PROXY_2_IP_V6=fd00:10::42
 
+DB_PROXY_VIP_IP_V4=10.0.0.40
+DB_PROXY_VIP_IP_V6=fd00:10::40
+
 # Patroni/etcd identity
 NODE_NAME=db-1
 
@@ -506,16 +509,16 @@ table inet filter {
         ip6 saddr fd00:10::20-fd00:10::29 tcp dport 22 accept
 
         # Postgres the peer and proxy
-        ip saddr { $LAN_IP_V4, $PEER_IP_V4, $DB_PROXY_1_IP_V4, $DB_PROXY_2_IP_V4 } tcp dport 5432 accept
-        ip6 saddr { $LAN_IP_V6, $PEER_IP_V6, $DB_PROXY_1_IP_V6, $DB_PROXY_2_IP_V6 } tcp dport 5432 accept
+        ip saddr { $LAN_IP_V4, $PEER_IP_V4, $DB_PROXY_VIP_IP_V4, $DB_PROXY_1_IP_V4, $DB_PROXY_2_IP_V4 } tcp dport 5432 accept
+        ip6 saddr { $LAN_IP_V6, $PEER_IP_V6, $DB_PROXY_VIP_IP_V6, $DB_PROXY_1_IP_V6, $DB_PROXY_2_IP_V6 } tcp dport 5432 accept
 
         # Patroni REST API
-        ip saddr { $LAN_IP_V4, $PEER_IP_V4, $DB_PROXY_1_IP_V4, $DB_PROXY_2_IP_V4 } tcp dport 8008 accept
-        ip6 saddr { $LAN_IP_V6, $PEER_IP_V6, $DB_PROXY_1_IP_V6, $DB_PROXY_2_IP_V6 } tcp dport 8008 accept
+        ip saddr { $LAN_IP_V4, $PEER_IP_V4, $DB_PROXY_VIP_IP_V4, $DB_PROXY_1_IP_V4, $DB_PROXY_2_IP_V4 } tcp dport 8008 accept
+        ip6 saddr { $LAN_IP_V6, $PEER_IP_V6, $DB_PROXY_VIP_IP_V6, $DB_PROXY_1_IP_V6, $DB_PROXY_2_IP_V6 } tcp dport 8008 accept
 
         # etcd peers
-        ip saddr { $LAN_IP_V4, $PEER_IP_V4, $DB_PROXY_1_IP_V4, $DB_PROXY_2_IP_V4 } tcp dport { 2379, 2380 } accept
-        ip6 saddr { $LAN_IP_V6, $PEER_IP_V6, $DB_PROXY_1_IP_V6, $DB_PROXY_2_IP_V6 } tcp dport { 2379, 2380 } accept
+        ip saddr { $LAN_IP_V4, $PEER_IP_V4, $DB_PROXY_VIP_IP_V4, $DB_PROXY_1_IP_V4, $DB_PROXY_2_IP_V4 } tcp dport { 2379, 2380 } accept
+        ip6 saddr { $LAN_IP_V6, $PEER_IP_V6, $DB_PROXY_VIP_IP_V6, $DB_PROXY_1_IP_V6, $DB_PROXY_2_IP_V6 } tcp dport { 2379, 2380 } accept
 
         # For node exporter from analytics server 10.0.0.31 / fd00:10::31
         ip saddr 10.0.0.31/32 tcp dport 9100 accept
