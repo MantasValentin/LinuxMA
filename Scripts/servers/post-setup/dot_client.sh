@@ -36,6 +36,7 @@ configure_resolver() {
 [Resolve]
 DNS=10.0.0.53#dns-rslv-1.lab.internal 10.0.0.54#dns-rslv-2.lab.internal
 DNSOverTLS=$DOT_MODE
+DNSSEC=allow-downgrade
 EOT
     then
         sudo systemctl restart systemd-resolved
