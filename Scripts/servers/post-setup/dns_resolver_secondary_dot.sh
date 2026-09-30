@@ -141,11 +141,14 @@ options {
 };
 EOT
 
-    sudo restorecon -Rv /etc/named
+    sudo restorecon -Rv /etc/named /var/named
 
-    if [ "$changed" -eq 1 ]; then
-        sudo systemctl restart named
+    if ! sudo systemctl is-active --quiet isc-bind-named; then
+        sudo systemctl enable --now isc-bind-named
+    elif [ "$changed" -eq 1 ]; then
+        sudo systemctl restart isc-bind-named
     fi
+    sudo systemctl enable isc-bind-named
 }
 
 configure_firewall_dot() {
