@@ -137,7 +137,7 @@ zone "0.0.0.0.0.0.0.0.0.1.0.0.0.0.d.f.ip6.arpa" {
 };
 EOT
 
-    sudo restorecon -Rv /etc/named
+    sudo restorecon -Rv /etc/named /var/named
 
     if ! sudo systemctl is-active --quiet isc-bind-named; then
         sudo systemctl enable --now isc-bind-named
