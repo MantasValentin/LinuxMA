@@ -288,7 +288,7 @@ namespace: /db/
 name: $NODE_NAME
 
 restapi:
-    listen: 0.0.0.0:8008
+    listen: "[::]:8008"
     connect_address: $FQDN:8008
     certfile: $TLS_CERT
     keyfile: $TLS_KEY
@@ -344,7 +344,7 @@ bootstrap:
         - hostnossl all all ::/0 reject
 
 postgresql:
-    listen: 0.0.0.0:5432
+    listen: "[::]:5432"
     connect_address: $FQDN:5432
     data_dir: /var/lib/pgsql/${PG_VERSION}/data
     bin_dir: /usr/pgsql-${PG_VERSION}/bin
