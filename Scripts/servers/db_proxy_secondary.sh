@@ -440,6 +440,16 @@ EOT
 }
 
 configure_keepalived() {
+    sudo tee /etc/keepalived/chk_haproxy.sh >/dev/null <<'EOF'
+#!/bin/sh
+exec /usr/bin/pgrep -x haproxy >/dev/null
+EOF
+    sudo chown root:root /etc/keepalived/chk_haproxy.sh
+    sudo chmod 0755 /etc/keepalived/chk_haproxy.sh
+
+    sudo semanage fcontext -a -t keepalived_unconfined_script_exec_t '/etc/keepalived/(chk_haproxy|notify)\.sh'
+    sudo restorecon -v /etc/keepalived/chk_haproxy.sh /etc/keepalived/notify.sh
+
     if write_file_if_changed /etc/keepalived/keepalived.conf 0644 root:root <<EOT
 global_defs {
     router_id DB_PROXY_2
@@ -448,9 +458,8 @@ global_defs {
 }
 
 vrrp_script chk_haproxy {
-    script "/usr/bin/pgrep haproxy"
+    script "/etc/keepalived/chk_haproxy.sh"
     interval 2
-    weight -60
     fall 2
     rise 2
 }
@@ -461,13 +470,17 @@ vrrp_sync_group VG_DB {
         VIP_DB_V6
     }
 
+    track_script {
+        chk_haproxy
+    }
+
     notify_master "/etc/keepalived/notify.sh master"
     notify_backup "/etc/keepalived/notify.sh backup"
     notify_fault  "/etc/keepalived/notify.sh fault"
 }
 
 vrrp_instance VIP_DB_V4 {
-    state MASTER
+    state BACKUP
     interface $NIC
     virtual_router_id 110
     priority 100
@@ -482,14 +495,10 @@ vrrp_instance VIP_DB_V4 {
     virtual_ipaddress {
         $VIP_V4/$VIP_PREFIX_V4
     }
-
-    track_script {
-        chk_haproxy
-    }
 }
 
 vrrp_instance VIP_DB_V6 {
-    state MASTER
+    state BACKUP
     interface $NIC
     virtual_router_id 111
     priority 100
@@ -498,10 +507,6 @@ vrrp_instance VIP_DB_V6 {
 
     virtual_ipaddress {
         $VIP_V6/$VIP_PREFIX_V6
-    }
-
-    track_script {
-        chk_haproxy
     }
 }
 EOT
