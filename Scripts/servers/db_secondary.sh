@@ -463,10 +463,7 @@ EOT
 EOT
 
     if sudo systemctl is-active --quiet patroni; then
-        if curl -fs \
-            --cacert "$TLS_CA" \
-            --resolve "$FQDN:8008:127.0.0.1" \
-            "https://$FQDN:8008/primary" >/dev/null 2>&1; then
+        if curl -fs --cacert "$TLS_CA" --resolve "$FQDN:8008:127.0.0.1" "https://$FQDN:8008/primary" >/dev/null 2>&1; then
 
             echo "Patroni reports this node is PRIMARY."
 
