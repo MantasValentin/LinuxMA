@@ -451,9 +451,17 @@ if ! curl -fs --cacert $TLS_CA --resolve "$FQDN:8008:127.0.0.1" "https://$FQDN:8
 fi
 
 logger "pg_backup: starting \${TYPE} backup"
-sudo -u postgres pgbackrest --stanza=pg-cluster --config=/etc/pgbackrest/pgbackrest.conf \
-    --type="\${TYPE}" backup
-logger "pg_backup: \${TYPE} backup complete"
+rc=0
+for repo in 1 2; do
+    if sudo -u postgres pgbackrest --stanza=pg-cluster --config=/etc/pgbackrest/pgbackrest.conf \
+        --repo="\$repo" --type="\$TYPE" backup; then
+        logger "pg_backup: \${TYPE} backup to repo-\${repo} complete"
+    else
+        logger "pg_backup: \${TYPE} backup to repo-\${repo} FAILED"
+        rc=1
+    fi
+done
+exit "\$rc"
 EOT
 
     write_file_if_changed /etc/cron.d/pgbackrest 0644 root:root <<EOT
